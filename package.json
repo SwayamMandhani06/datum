@@ -1,0 +1,10 @@
+{
+  "name": "datum-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix datum-frontend run dev",
+    "build": "npm --prefix datum-frontend run build",
+    "preview": "npm --prefix datum-frontend run preview"
+  }
+}
