@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Header } from './components/Header';
-import { DocumentListRail } from './components/DocumentListRail';
-import { ConversationView } from './components/ConversationView';
-import { EvidenceDrawer } from './components/EvidenceDrawer';
-import { mockDocuments, mockCitations, initialExchanges } from './data/mockData';
-import type { QAExchange } from './types';
+import { Header } from '../components/Header';
+import { DocumentListRail } from '../components/DocumentListRail';
+import { ConversationView } from '../components/ConversationView';
+import { EvidenceDrawer } from '../components/EvidenceDrawer';
+import { mockDocuments, mockCitations, initialExchanges } from '../data/mockData';
+import type { QAExchange } from '../types';
 
-export function App() {
+export const WorkspacePage: React.FC = () => {
   const [selectedDocId, setSelectedDocId] = useState<string>('DOC-AUTOSAR-4.4.0');
   const [exchanges, setExchanges] = useState<QAExchange[]>(initialExchanges);
   const [activeCitationId, setActiveCitationId] = useState<number | null>(null);
@@ -35,7 +35,6 @@ export function App() {
       now.getMinutes()
     ).padStart(2, '0')}`;
 
-    // Add user question and realistic mock AUTOSAR answer grounded with citation 4
     const newExchange: QAExchange = {
       id: newId,
       question: questionText,
@@ -69,30 +68,47 @@ export function App() {
 
   const handleUploadClick = () => {
     setUploadNotice('Document upload: Drop AUTOSAR XML (ARXML) or HLD PDF here to index.');
-    setTimeout(() => {
-      setUploadNotice(null);
-    }, 4000);
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-ink-950 text-ink-text overflow-hidden font-sans">
-      {/* Top Header Bar */}
+    <div className="h-screen w-screen flex flex-col bg-surface-0 text-text-primary overflow-hidden font-sans relative">
+      {/* Top Header Bar with restrained glass */}
       <Header activeDocument={activeDocument} />
 
-      {/* Upload Banner / Toast if triggered */}
+      {/* Upload Dialog / Modal with restrained glassmorphic overlay */}
       {uploadNotice && (
         <div
-          role="status"
-          className="bg-ink-800 border-b border-signal-teal px-6 py-2 text-scale-13 text-ink-text flex items-center justify-between"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
         >
-          <span>{uploadNotice}</span>
-          <button
-            type="button"
-            onClick={() => setUploadNotice(null)}
-            className="text-graphite-400 hover:text-ink-text font-mono text-scale-13"
-          >
-            Dismiss
-          </button>
+          <div className="glass-chrome border border-glass-border p-6 max-w-md w-full shadow-2xl text-text-primary">
+            <div className="flex items-center justify-between pb-3 border-b border-border-theme">
+              <span className="text-scale-17 font-medium">Specification Ingestion</span>
+              <button
+                type="button"
+                onClick={() => setUploadNotice(null)}
+                className="text-scale-13 text-text-muted hover:text-text-primary"
+              >
+                Close
+              </button>
+            </div>
+            <p className="mt-4 text-scale-15 text-text-muted leading-relaxed">
+              {uploadNotice}
+            </p>
+            <div className="mt-4 p-4 border border-dashed border-border-theme bg-surface-2/60 text-center text-scale-13 text-text-muted">
+              Select or drag .pdf or .arxml file
+            </div>
+            <div className="mt-6 flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setUploadNotice(null)}
+                className="h-9 px-4 text-scale-13 bg-accent text-surface-0 font-medium hover:opacity-90 transition-opacity"
+              >
+                Done
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -124,6 +140,4 @@ export function App() {
       </div>
     </div>
   );
-}
-
-export default App;
+};

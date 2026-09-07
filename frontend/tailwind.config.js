@@ -7,15 +7,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        'ink-950': 'var(--color-ink-950, #131B24)',
-        'ink-800': 'var(--color-ink-800, #1E2A36)',
-        'ink-600': 'var(--color-ink-600, #2E3D4B)',
-        'paper-100': 'var(--color-paper-100, #F3EFE6)',
-        'paper-300': 'var(--color-paper-300, #E4DCC8)',
-        'graphite-400': 'var(--color-graphite-400, #8A94A0)',
-        'ink-text': 'var(--color-ink-text, #E7ECF1)',
-        'signal-teal': 'var(--color-signal-teal, #3FB8AC)',
-        'warn-amber': 'var(--color-warn-amber, #D9A441)',
+        'surface-0': 'var(--surface-0)',
+        'surface-1': 'var(--surface-1)',
+        'surface-2': 'var(--surface-2)',
+        'text-primary': 'var(--text-primary)',
+        'text-muted': 'var(--text-muted)',
+        accent: 'var(--accent)',
+        'accent-soft': 'var(--accent-soft)',
+        'flag-amber': 'var(--flag-amber)',
+        'border-theme': 'var(--border)',
+        'glass-fill': 'var(--glass-fill)',
+        'glass-border': 'var(--glass-border)',
+        'evidence-paper': '#DCD3BC',
+        'evidence-border': '#233041',
       },
       fontFamily: {
         sans: ['"IBM Plex Sans"', 'sans-serif'],

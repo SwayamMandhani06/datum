@@ -31,24 +31,23 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
     <>
       {/* Backdrop for screens < 1024px when drawer is in overlay mode */}
       <div
-        className={`lg:hidden fixed inset-0 bg-ink-950/80 z-40 transition-opacity duration-200 motion-reduce:transition-none ${
+        className={`lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-200 motion-reduce:transition-none ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Drawer Panel */}
+      {/* Drawer Panel: always #DCD3BC paper tone with #233041 border */}
       <aside
         aria-label="Evidence and Citation Panel"
         aria-hidden={!isOpen}
         className={`
-          /* Position & Dimensions */
           fixed inset-y-0 right-0 z-50 w-full sm:w-[380px]
           lg:static lg:z-auto lg:w-[340px] lg:flex-shrink-0
           
-          /* Visual appearance: paper-100 background, paper-300 borders */
-          bg-paper-100 text-[#15202B] border-l border-paper-300
+          /* Always uses evidence-paper #DCD3BC with #233041 ink-colored left border */
+          bg-evidence-paper text-[#15202B] border-l border-evidence-border
           flex flex-col h-full overflow-hidden select-none
 
           /* Deliberate smooth slide-in motion (~200ms) ONLY on citation click */
@@ -56,32 +55,28 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
           ${isOpen ? 'translate-x-0' : 'translate-x-full lg:hidden'}
         `}
       >
-        {/* Drawer Header */}
-        <div className="h-14 px-5 border-b border-paper-300 flex items-center justify-between flex-shrink-0">
+        {/* Restrained Glassmorphic Header Strip only */}
+        <div className="h-14 px-5 glass-chrome border-b border-glass-border flex items-center justify-between flex-shrink-0">
           <div className="flex items-center space-x-2">
-            <span className="text-scale-17 font-medium text-[#15202B]">
-              Cited evidence
+            {/* Monospace citation header */}
+            <span className="font-mono text-scale-13 text-[#15202B] font-medium">
+              {citation ? `[${citation.id}] Citation Evidence` : 'Document Evidence'}
             </span>
-            {citation && (
-              <span className="font-mono text-scale-13 text-[#5A6573]">
-                [{citation.id}]
-              </span>
-            )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-scale-15 font-medium text-[#465362] hover:text-[#15202B] py-1 px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal-teal transition-colors"
+            className="text-scale-15 font-medium text-[#465362] hover:text-[#15202B] py-1 px-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent transition-colors"
           >
             Close
           </button>
         </div>
 
-        {/* Drawer Body */}
+        {/* Drawer Body: Solid paper-toned (NOT glass) */}
         {citation ? (
           <div className="flex-1 overflow-y-auto paper-scrollbar p-6 space-y-6">
             {/* Document and Location Reference */}
-            <div className="space-y-2 border-b border-paper-300 pb-4">
+            <div className="space-y-2 border-b border-[#C8BFAB] pb-4">
               <div className="text-scale-13 text-[#5A6573]">
                 Source document
               </div>
@@ -115,15 +110,15 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
               <div className="text-scale-13 text-[#5A6573]">
                 Verified excerpt
               </div>
-              <blockquote className="text-scale-17 text-[#15202B] leading-relaxed font-normal bg-white/60 p-4 border-l-2 border-[#8A94A0]">
+              <blockquote className="text-scale-17 text-[#15202B] leading-relaxed font-normal bg-white/70 p-4 border-l-2 border-[#8A94A0]">
                 "{citation.excerpt}"
               </blockquote>
             </div>
 
-            {/* Confidence warning: plain text warn-amber ONLY when relevant */}
+            {/* Confidence warning: plain text flag-amber ONLY when relevant */}
             {citation.isLowConfidence && (
               <div className="pt-2">
-                <div className="text-scale-13 font-normal text-warn-amber leading-snug">
+                <div className="text-scale-13 font-normal text-flag-amber leading-snug">
                   {citation.confidenceNote || 'Low confidence — verify against source'}
                 </div>
               </div>
@@ -136,7 +131,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({
         )}
 
         {/* Drawer Footer */}
-        <div className="p-4 border-t border-paper-300 text-scale-13 text-[#5A6573] flex-shrink-0">
+        <div className="p-4 border-t border-[#C8BFAB] text-scale-13 text-[#5A6573] flex-shrink-0">
           <div>Grounded verification</div>
           <div className="font-mono text-scale-13 text-[#15202B] mt-0.5">
             Checksum SHA-256 verified
