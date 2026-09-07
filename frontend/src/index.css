@@ -16,8 +16,9 @@
   --accent-soft: rgba(75, 158, 150, 0.15);
   --flag-amber: #C6974C;
   --border: rgba(255, 255, 255, 0.08);
-  --glass-fill: rgba(27, 33, 41, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-fill: rgba(20, 24, 29, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --paper-highlight: rgba(75, 158, 150, 0.22);
   color-scheme: dark;
 }
 
@@ -31,8 +32,9 @@
   --accent-soft: rgba(46, 136, 128, 0.12);
   --flag-amber: #A87A2C;
   --border: rgba(20, 20, 20, 0.08);
-  --glass-fill: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(20, 20, 20, 0.06);
+  --glass-fill: rgba(241, 236, 224, 0.78);
+  --glass-border: rgba(20, 20, 20, 0.08);
+  --paper-highlight: rgba(46, 136, 128, 0.18);
   color-scheme: light;
 }
 
@@ -58,17 +60,77 @@ html, body {
 .glass-chrome {
   background-color: var(--glass-fill);
   border-color: var(--glass-border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-/* Respect user preference for reduced motion */
+/* Specific Motion Moments */
+
+/* 1. Hero pulse on citation marker [1] */
+@keyframes markerPulseGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(75, 158, 150, 0);
+    background-color: transparent;
+  }
+  35% {
+    box-shadow: 0 0 10px 3px var(--accent);
+    background-color: var(--accent-soft);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(75, 158, 150, 0);
+    background-color: transparent;
+  }
+}
+
+.animate-marker-pulse {
+  animation: markerPulseGlow 600ms ease-out forwards;
+}
+
+/* 2. Workspace citation click underline glow */
+@keyframes underlineGlowKeyframe {
+  0% {
+    text-shadow: 0 0 0 rgba(75, 158, 150, 0);
+    text-decoration-color: var(--accent);
+  }
+  40% {
+    text-shadow: 0 0 8px var(--accent);
+    text-decoration-color: var(--text-primary);
+  }
+  100% {
+    text-shadow: 0 0 0 rgba(75, 158, 150, 0);
+    text-decoration-color: var(--accent);
+  }
+}
+
+.animate-citation-glow {
+  animation: underlineGlowKeyframe 600ms ease-out forwards;
+}
+
+/* 3. Built on evidence: soft highlight sweep transition */
+.phrase-highlight {
+  transition: background-color 500ms ease, color 500ms ease;
+  background-color: transparent;
+}
+
+.phrase-highlight.is-swept {
+  background-color: var(--paper-highlight);
+  border-bottom: 1.5px solid var(--accent);
+}
+
+/* Respect user preference for reduced motion: all animations instant/no-op */
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  .animate-marker-pulse,
+  .animate-citation-glow {
+    animation: none !important;
+  }
+  .phrase-highlight {
+    transition: none !important;
   }
 }
 

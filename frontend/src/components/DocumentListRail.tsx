@@ -52,15 +52,15 @@ export const DocumentListRail: React.FC<DocumentListRailProps> = ({
               className={`w-full text-left p-3 transition-colors ${
                 isSelected
                   ? 'border-l-2 border-accent bg-surface-2'
-                  : 'border-l-2 border-transparent hover:bg-surface-2/70'
+                  : 'border-l-2 border-transparent hover:bg-surface-2/60'
               }`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="text-scale-15 font-medium text-text-primary leading-snug break-words flex-1">
                   {doc.filename}
                 </div>
-                {/* Small file-type tag with subtle visual weight */}
-                <span className="font-mono text-[11px] leading-none px-1.5 py-0.5 border border-border-theme bg-surface-0 text-text-muted flex-shrink-0 mt-0.5">
+                {/* File-type tag with distinct surface-0 background and clear visual contrast */}
+                <span className="font-mono text-[11px] font-semibold leading-none px-2 py-1 border border-border-theme bg-surface-0 text-text-primary flex-shrink-0 mt-0.5 tracking-wider">
                   {fileType}
                 </span>
               </div>

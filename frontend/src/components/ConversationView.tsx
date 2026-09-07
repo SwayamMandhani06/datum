@@ -17,6 +17,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   onAskQuestion,
 }) => {
   const [inputValue, setInputValue] = useState('');
+  const [pulsingCitationId, setPulsingCitationId] = useState<number | null>(null);
   const threadEndRef = useRef<HTMLDivElement>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -27,25 +28,35 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
     setInputValue('');
   };
 
+  const handleCitationSelect = (citationId: number) => {
+    setPulsingCitationId(citationId);
+    onCitationClick(citationId);
+    setTimeout(() => {
+      setPulsingCitationId(null);
+    }, 650);
+  };
+
   useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [exchanges]);
 
   return (
     <main className="flex-1 min-w-0 bg-surface-0 flex flex-col h-full relative">
-      {/* Top pane bar: context header (matte) */}
-      <div className="h-11 px-8 border-b border-border-theme flex items-center justify-between text-scale-13 bg-surface-0 flex-shrink-0">
+      {/* Top pane bar: context header with distinct surface-1 background */}
+      <div className="h-11 px-8 border-b border-border-theme flex items-center justify-between text-scale-13 bg-surface-1 flex-shrink-0">
         <div className="flex items-center space-x-2">
           <span className="text-text-muted">Grounded in specification:</span>
-          <span className="font-mono text-text-primary">{document.filename}</span>
+          <span className="font-mono text-text-primary bg-surface-2 px-1.5 py-0.5 border border-border-theme">
+            {document.filename}
+          </span>
         </div>
         <div className="text-text-muted font-mono text-scale-13">
           Exact-page citation mode
         </div>
       </div>
 
-      {/* Scrollable Conversation Thread (solid matte) */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-6 space-y-8">
+      {/* Scrollable Conversation Thread on solid surface-0 */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-6 space-y-8 bg-surface-0">
         {exchanges.map((exchange) => (
           <article key={exchange.id} className="space-y-4 max-w-3xl mx-auto">
             {/* User Question: Simple right-aligned text, no bubble chrome */}
@@ -79,13 +90,16 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
                   if (segment.type === 'citation') {
                     const isCurrent = activeCitationId === segment.citationId;
+                    const isPulsing = pulsingCitationId === segment.citationId;
                     return (
                       <button
                         key={idx}
                         type="button"
-                        onClick={() => onCitationClick(segment.citationId)}
+                        onClick={() => handleCitationSelect(segment.citationId)}
                         aria-label={`Open citation reference ${segment.citationId}`}
-                        className={`inline-flex items-baseline font-mono text-scale-13 mx-0.5 px-0.5 transition-colors cursor-pointer ${
+                        className={`inline-flex items-baseline font-mono text-scale-13 mx-0.5 px-0.5 transition-all cursor-pointer rounded-xs ${
+                          isPulsing ? 'animate-citation-glow' : ''
+                        } ${
                           isCurrent
                             ? 'text-accent font-medium underline decoration-accent decoration-2 underline-offset-4 bg-surface-2'
                             : 'text-accent underline decoration-accent underline-offset-2 hover:opacity-80'
@@ -106,7 +120,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         <div ref={threadEndRef} />
       </div>
 
-      {/* Input Area: Solid matte, single-line text input with plain text "Ask" button */}
+      {/* Input Area: Solid matte surface-1, single-line text input on surface-2 with plain text "Ask" button */}
       <div className="border-t border-border-theme bg-surface-1 p-4 flex-shrink-0">
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit} className="flex items-center space-x-3">
