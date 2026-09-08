@@ -27,6 +27,12 @@ MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 cors_env = os.getenv("CORS_ORIGINS", "http://localhost:5173")
 CORS_ORIGINS: List[str] = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
 
+# Qdrant & Embeddings Configurations
+QDRANT_URL = os.getenv("QDRANT_URL", "").strip()
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
+QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "datum_chunks").strip()
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5").strip()
+
 # Ensure upload directory exists
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 

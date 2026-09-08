@@ -36,3 +36,22 @@ class ChunkResponse(BaseModel):
     text: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+
+class SearchResultItem(BaseModel):
+    chunk_id: str
+    section_title: Optional[str] = None
+    page_start: int
+    page_end: int
+    text: str
+    score: float
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchResultItem]
+

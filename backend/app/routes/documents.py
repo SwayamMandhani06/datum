@@ -4,9 +4,17 @@ from pathlib import Path
 from typing import List
 from fastapi import APIRouter, UploadFile, File, HTTPException, status
 from app.database import get_db, UPLOAD_DIR, MAX_UPLOAD_MB, MAX_UPLOAD_BYTES
-from app.models import DocumentResponse, DocumentUploadResponse, ChunkResponse
+from app.models import (
+    DocumentResponse,
+    DocumentUploadResponse,
+    ChunkResponse,
+    SearchRequest,
+    SearchResponse,
+    SearchResultItem,
+)
 from app.parsing import parse_pdf
 from app.chunking import build_chunks_from_blocks
+from app.vectorstore import upsert_chunks, delete_document_vectors, search
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -23,7 +31,8 @@ def sanitize_filename(filename: str) -> str:
 async def upload_document(file: UploadFile = File(...)):
     """
     Upload a PDF document, validate type/size, extract text,
-    perform section-aware chunking, and persist in SQLite.
+    perform section-aware chunking, generate embeddings, and persist in SQLite & Qdrant.
+    Progresses: processing -> embedding -> ready (or failed).
     """
     # 1. Validate file extension
     original_filename = file.filename or "document.pdf"
@@ -81,20 +90,34 @@ async def upload_document(file: UploadFile = File(...)):
         page_count, parsed_blocks = parse_pdf(str(file_path))
         chunks = build_chunks_from_blocks(parsed_blocks)
 
+        chunk_dicts = [
+            {
+                "id": str(uuid.uuid4()),
+                "document_id": doc_id,
+                "chunk_index": c.chunk_index,
+                "section_title": c.section_title,
+                "page_start": c.page_start,
+                "page_end": c.page_end,
+                "text": c.text,
+                "word_count": c.word_count,
+            }
+            for c in chunks
+        ]
+
         async with get_db() as db:
             # Batch insert chunks
             chunk_rows = [
                 (
-                    str(uuid.uuid4()),
-                    doc_id,
-                    c.chunk_index,
-                    c.section_title,
-                    c.page_start,
-                    c.page_end,
-                    c.text,
-                    c.word_count,
+                    cd["id"],
+                    cd["document_id"],
+                    cd["chunk_index"],
+                    cd["section_title"],
+                    cd["page_start"],
+                    cd["page_end"],
+                    cd["text"],
+                    cd["word_count"],
                 )
-                for c in chunks
+                for cd in chunk_dicts
             ]
 
             await db.executemany(
@@ -105,14 +128,29 @@ async def upload_document(file: UploadFile = File(...)):
                 chunk_rows,
             )
 
-            # Update document to ready
+            # Transition document status to "embedding"
             await db.execute(
                 """
                 UPDATE documents
-                SET page_count = ?, status = 'ready', error_message = NULL
+                SET page_count = ?, status = 'embedding', error_message = NULL
                 WHERE id = ?
                 """,
                 (page_count, doc_id),
+            )
+            await db.commit()
+
+        # 5. Embed chunks and upsert to Qdrant vector store
+        upsert_chunks(doc_id, chunk_dicts)
+
+        # 6. Transition document status to "ready"
+        async with get_db() as db:
+            await db.execute(
+                """
+                UPDATE documents
+                SET status = 'ready', error_message = NULL
+                WHERE id = ?
+                """,
+                (doc_id,),
             )
             await db.commit()
 
@@ -218,7 +256,7 @@ async def get_document_chunks(document_id: str):
 
 @router.delete("/{document_id}", status_code=status.HTTP_200_OK)
 async def delete_document(document_id: str):
-    """Delete a document, its database records, and remove the file from disk."""
+    """Delete a document, its database records, its vectors from Qdrant, and remove the file from disk."""
     async with get_db() as db:
         async with db.execute("SELECT filename FROM documents WHERE id = ?", (document_id,)) as cursor:
             row = await cursor.fetchone()
@@ -228,11 +266,14 @@ async def delete_document(document_id: str):
                     detail=f"Document with id '{document_id}' not found.",
                 )
 
-        # Remove from database (chunks deleted via CASCADE foreign key)
+        # 1. Remove vectors from Qdrant
+        delete_document_vectors(document_id)
+
+        # 2. Remove from database (chunks deleted via CASCADE foreign key)
         await db.execute("DELETE FROM documents WHERE id = ?", (document_id,))
         await db.commit()
 
-    # Remove file from disk
+    # 3. Remove file from disk
     for p in UPLOAD_DIR.glob(f"{document_id}_*"):
         try:
             if p.is_file():
@@ -244,3 +285,51 @@ async def delete_document(document_id: str):
         "message": "Document and associated chunks deleted successfully.",
         "id": document_id,
     }
+
+
+@router.post("/{document_id}/search", response_model=SearchResponse)
+async def search_document_chunks(document_id: str, payload: SearchRequest):
+    """
+    Retrieve top-k relevant chunks for a query within a document using dense vector search.
+    """
+    async with get_db() as db:
+        async with db.execute(
+            "SELECT id, filename, status FROM documents WHERE id = ?", (document_id,)
+        ) as cursor:
+            doc = await cursor.fetchone()
+            if not doc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document with id '{document_id}' not found.",
+                )
+            if doc["status"] != "ready":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Document is not ready for search (current status: '{doc['status']}').",
+                )
+
+    try:
+        results = search(
+            document_id=document_id,
+            query=payload.query,
+            top_k=payload.top_k,
+        )
+        return SearchResponse(
+            results=[
+                SearchResultItem(
+                    chunk_id=r["chunk_id"],
+                    section_title=r["section_title"],
+                    page_start=r["page_start"],
+                    page_end=r["page_end"],
+                    text=r["text"],
+                    score=r["score"],
+                )
+                for r in results
+            ]
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Vector search failed: {str(e)}",
+        )
+

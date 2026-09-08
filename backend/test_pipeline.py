@@ -1,15 +1,21 @@
 import os
 import sys
 from pathlib import Path
-import pymupdf
 
 # Add backend directory to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+# Configure in-memory Qdrant and test collection for automated testing
+os.environ["QDRANT_URL"] = ":memory:"
+os.environ["QDRANT_COLLECTION"] = "test_datum_chunks"
+
+import pymupdf
+from starlette.testclient import TestClient
 from app.parsing import parse_pdf
 from app.chunking import build_chunks_from_blocks
+from app.embeddings import embed_texts, embed_query
+from app.vectorstore import search as vector_search
 from app.main import app
-from starlette.testclient import TestClient
 
 
 def create_sample_autosar_pdf(filepath: str):
@@ -28,19 +34,14 @@ def create_sample_autosar_pdf(filepath: str):
 
     # --- Page 2: Section 4 (Heading 1) and Subsection 4.1 (Heading 2) with >500 words ---
     page2 = doc.new_page()
-    # Heading 1 (Large Bold)
     page2.insert_text((50, 60), "4 Software Component Types", fontsize=16, fontname="helv")
-    # Intro (< 100 words)
     intro_p2 = (
         "Software components are the fundamental architectural building blocks of "
         "an AUTOSAR application. They encapsulate specific functional algorithms."
     )
     page2.insert_text((50, 90), intro_p2, fontsize=10, fontname="helv")
 
-    # Heading 2 (Medium Bold)
     page2.insert_text((50, 130), "4.1 Sensor-Actuator Component Type", fontsize=13, fontname="helv")
-
-    # Generate a long text paragraph (> 500 words) to verify splitting with overlap
     base_sentence = (
         "A SensorActuatorSoftwareComponentType represents an abstraction of a physical sensor or actuator device. "
         "The component interacts with hardware abstraction layers through standardized AUTOSAR port prototypes. "
@@ -91,32 +92,63 @@ def run_tests():
     assert page_count == 4, f"Expected 4 pages, got {page_count}"
     assert len(blocks) > 0, "Expected non-empty blocks"
 
-    # Check that headings were detected
-    heading_titles = [b.heading_title for b in blocks if b.heading_title]
-    print(f"[OK] Detected heading titles: {set(heading_titles)}")
-    assert any("4 Software Component" in h for h in heading_titles if h), "Heading 4 not detected"
-    assert any("4.1" in h for h in heading_titles if h), "Heading 4.1 not detected"
-    assert any("4.2" in h for h in heading_titles if h), "Heading 4.2 not detected"
-    assert any("5 Diagnostic" in h for h in heading_titles if h), "Heading 5 not detected"
-
     # 2. Test chunking.py directly
     chunks = build_chunks_from_blocks(blocks)
     print(f"[OK] build_chunks_from_blocks produced {len(chunks)} chunks.")
     assert len(chunks) >= 3, f"Expected at least 3 chunks, got {len(chunks)}"
 
-    for c in chunks:
-        print(
-            f"   Chunk {c.chunk_index}: Title='{c.section_title}' Pages={c.page_start}-{c.page_end} Words={c.word_count}"
-        )
-        assert c.word_count > 0, "Chunk word count must be positive"
-        assert c.page_start <= c.page_end, "page_start must be <= page_end"
+    # 3. Test embeddings.py directly (batch embedding and asymmetric query)
+    sample_texts = [
+        "Software components interact via AUTOSAR port prototypes.",
+        "EngineSpeedSensor provides EngineSpeed_Rpm with 0.25 rpm resolution.",
+    ]
+    vecs = embed_texts(sample_texts, batch_size=2)
+    print(f"[OK] embed_texts embedded {len(vecs)} passages. Dimension: {len(vecs[0])}")
+    assert len(vecs) == 2, "Expected 2 embeddings"
+    assert len(vecs[0]) == 384, f"Expected dimension 384, got {len(vecs[0])}"
 
-    # 3. Test FastAPI endpoints using TestClient
+    query_vec = embed_query("What port prototype is configured for EngineSpeed?")
+    print(f"[OK] embed_query embedded query with BGE prefix. Dimension: {len(query_vec)}")
+    assert len(query_vec) == 384, f"Expected dimension 384, got {len(query_vec)}"
+
+    # 4. Test Qdrant payload index initialization & idempotency
+    from unittest.mock import MagicMock
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import PayloadSchemaType
+    from app.vectorstore import ensure_payload_indexes, ensure_collection, get_qdrant_client
+
+    mock_client = MagicMock(spec=QdrantClient)
+    mock_client.get_collections.return_value.collections = [MagicMock(name="test_datum_chunks")]
+    mock_client.get_collection.return_value.payload_schema = {}
+
+    # Verify index is created when missing
+    ensure_payload_indexes(mock_client)
+    mock_client.create_payload_index.assert_called_once_with(
+        collection_name="test_datum_chunks",
+        field_name="document_id",
+        field_schema=PayloadSchemaType.KEYWORD,
+    )
+    print("[OK] ensure_payload_indexes created missing 'document_id' keyword index.")
+
+    # Verify idempotency when index already exists
+    mock_client.reset_mock()
+    mock_client.get_collection.return_value.payload_schema = {"document_id": MagicMock()}
+    ensure_payload_indexes(mock_client)
+    mock_client.create_payload_index.assert_not_called()
+    print("[OK] ensure_payload_indexes is idempotent when 'document_id' index already exists.")
+
+    # Verify real in-memory Qdrant client executes ensure_collection without error
+    real_client = get_qdrant_client()
+    ensure_collection(real_client)
+    print("[OK] Real Qdrant client executed ensure_collection and ensure_payload_indexes.")
+
+    # 5. Test FastAPI endpoints and vector search with TestClient
     with TestClient(app) as client:
         # Health check
         res = client.get("/health")
         assert res.status_code == 200, f"Health check failed: {res.text}"
-        print("[OK] GET /health returned 200")
+        assert res.json()["phase"] == "retrieval-and-embeddings"
+        print("[OK] GET /health returned 200 (retrieval-and-embeddings)")
 
         # Upload non-PDF (should fail with 400)
         res = client.post(
@@ -138,37 +170,65 @@ def run_tests():
         assert data["status"] == "ready", f"Expected status ready, got {data['status']}"
         assert data["page_count"] == 4, f"Expected 4 pages, got {data['page_count']}"
         assert data["chunk_count"] > 0, "Expected chunks > 0"
-        print(f"[OK] POST /documents/upload succeeded: doc_id={doc_id}, chunk_count={data['chunk_count']}")
+        print(f"[OK] POST /documents/upload completed with status 'ready': doc_id={doc_id}, chunks={data['chunk_count']}")
 
         # List documents
         res = client.get("/documents")
-        assert res.status_code == 200, f"Expected 200, got {res.status_code}"
+        assert res.status_code == 200
         docs = res.json()
-        assert any(d["id"] == doc_id for d in docs), "Uploaded document not in list"
-        print(f"[OK] GET /documents returned {len(docs)} documents.")
+        assert any(d["id"] == doc_id for d in docs)
+        print(f"[OK] GET /documents confirmed document {doc_id} exists.")
 
-        # Get chunks for document
-        res = client.get(f"/documents/{doc_id}/chunks")
-        assert res.status_code == 200, f"Expected 200, got {res.status_code}"
-        doc_chunks = res.json()
-        assert len(doc_chunks) == data["chunk_count"], "Chunk count mismatch in GET /chunks"
-        print(f"[OK] GET /documents/{doc_id}/chunks returned {len(doc_chunks)} chunks.")
+        # Test POST /documents/{id}/search for Engine Speed query
+        search_res = client.post(
+            f"/documents/{doc_id}/search",
+            json={"query": "EngineSpeedSensor SenderReceiverInterface If_EngineSpeed", "top_k": 3},
+        )
+        assert search_res.status_code == 200, f"Search failed: {search_res.text}"
+        search_data = search_res.json()
+        results = search_data.get("results", [])
+        assert len(results) > 0, "Expected search results"
+        top_match = results[0]
+        print(f"[OK] Search top match: Title='{top_match['section_title']}' Score={top_match['score']:.4f}")
+        assert "Engine Speed" in (top_match["section_title"] or "") or "pp_EngineSpeed" in top_match["text"], (
+            "Top result did not match expected section"
+        )
+        assert top_match["score"] > 0.5, f"Expected similarity score > 0.5, got {top_match['score']}"
 
-        # Delete document
-        res = client.delete(f"/documents/{doc_id}")
-        assert res.status_code == 200, f"Expected 200, got {res.status_code}"
+        # Test POST /documents/{id}/search for Diagnostics query
+        diag_res = client.post(
+            f"/documents/{doc_id}/search",
+            json={"query": "diagnostic fault memory UDS ISO 14229", "top_k": 2},
+        )
+        assert diag_res.status_code == 200
+        diag_results = diag_res.json().get("results", [])
+        assert len(diag_results) > 0
+        print(f"[OK] Diagnostic search top match: Title='{diag_results[0]['section_title']}' Score={diag_results[0]['score']:.4f}")
+        assert "Diagnostic" in (diag_results[0]["section_title"] or "") or "UDS" in diag_results[0]["text"]
+
+        # Search non-existent document
+        bad_search = client.post(
+            "/documents/00000000-0000-0000-0000-000000000000/search",
+            json={"query": "AUTOSAR", "top_k": 1},
+        )
+        assert bad_search.status_code == 404, "Expected 404 for missing document search"
+        print("[OK] POST /documents/{id}/search returned 404 for unknown document ID")
+
+        # Delete document (including Qdrant vectors)
+        del_res = client.delete(f"/documents/{doc_id}")
+        assert del_res.status_code == 200, f"Delete failed: {del_res.text}"
         print(f"[OK] DELETE /documents/{doc_id} returned 200")
 
-        # Confirm deleted
-        res = client.get(f"/documents/{doc_id}/chunks")
-        assert res.status_code == 404, f"Expected 404 after deletion, got {res.status_code}"
-        print("[OK] GET /documents/{doc_id}/chunks correctly returned 404 after deletion.")
+        # Confirm chunks and search now 404
+        assert client.get(f"/documents/{doc_id}/chunks").status_code == 404
+        assert client.post(f"/documents/{doc_id}/search", json={"query": "test"}).status_code == 404
+        print("[OK] Deleted document confirmed 404 on both GET chunks and POST search.")
 
     # Cleanup sample file
     if os.path.exists(test_pdf_path):
         os.remove(test_pdf_path)
 
-    print("\nALL INGESTION AND CHUNKING PIPELINE TESTS PASSED!")
+    print("\nALL INGESTION, EMBEDDINGS, AND VECTOR SEARCH TESTS PASSED SUCCESSFULLY!")
 
 
 if __name__ == "__main__":

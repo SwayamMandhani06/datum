@@ -30,6 +30,7 @@ Datum is currently in **Phase 2: Ingestion & Section-Aware Chunking**. The front
 - **Span-Level Structural Parsing**: PyMuPDF extraction analyzing font sizes, bold weights, and numbered patterns (`4.2`, `4.2.1`) to construct hierarchical heading stacks.
 - **Section-Aware Chunking**: 300–450 word target windows, ~60-word intra-section overlap, boundary preservation, and small section (< 100 words) forward merging without crossing major section boundaries.
 - **SQLite Storage**: Asynchronous database persistence via `aiosqlite` with foreign key cascade deletion for documents and chunks.
+- **Dense Vector Retrieval**: Integrated semantic search using `sentence-transformers` (`BAAI/bge-small-en-v1.5`) and `qdrant-client` vector store with document-scoped payload filtering.
 
 ---
 
@@ -46,9 +47,9 @@ Datum is currently in **Phase 2: Ingestion & Section-Aware Chunking**. The front
 | **API Framework** | FastAPI | 0.115+ | Implemented |
 | **PDF Extraction** | PyMuPDF | 1.25+ (span-level layout) | Implemented |
 | **Database** | SQLite / aiosqlite | 0.20+ async SQLite | Implemented |
-| **Vector Database** | Qdrant | Distributed | *Planned (Phase 3)* |
-| **Inference & LLM** | Groq / Llama 3.3 | Groq API | *Planned (Phase 3)* |
-| **Embedding Model** | sentence-transformers | BGE / E5-v2 | *Planned (Phase 3)* |
+| **Embedding Model** | sentence-transformers | BAAI/bge-small-en-v1.5 | Implemented |
+| **Vector Database** | Qdrant | Cloud / In-Memory | Implemented |
+| **Inference & LLM** | Groq / Llama 3.3 | Groq API | *Planned (Phase 4)* |
 
 ---
 
@@ -59,19 +60,21 @@ datum/
 ├── .gitignore               # Unified root gitignore (Node + Python + OS)
 ├── README.md                # Project documentation and specifications
 ├── package.json             # Root workspace runner scripts
-├── backend/                 # Backend API service (FastAPI + SQLite ingestion)
+├── backend/                 # Backend API service (FastAPI + SQLite + Qdrant)
 │   ├── app/                 # Application package
 │   │   ├── main.py          # FastAPI application & CORS configuration
 │   │   ├── models.py        # Pydantic request/response schemas
 │   │   ├── database.py      # aiosqlite connection pool & schema migration
 │   │   ├── parsing.py       # PyMuPDF span-level heading & text extraction
 │   │   ├── chunking.py      # Section-aware chunking (300-450 words, 60-word overlap)
+│   │   ├── embeddings.py    # BGE-small singleton embedding & query prefixing
+│   │   ├── vectorstore.py   # Qdrant client, collection init, upsert, delete & search
 │   │   └── routes/
-│   │       └── documents.py # /documents upload, list, get-chunks, delete endpoints
+│   │       └── documents.py # /documents upload, list, chunks, delete, and search
 │   ├── uploads/             # Local PDF storage directory (.gitkeep)
 │   ├── requirements.txt     # Python dependencies
 │   ├── .env.example         # Environment configuration template
-│   └── test_pipeline.py     # End-to-end ingestion and chunking test suite
+│   └── test_pipeline.py     # End-to-end ingestion and vector search test suite
 └── frontend/                # React + Vite + TypeScript frontend application
     ├── index.html           # HTML entrypoint with IBM Plex font preconnects
     ├── package.json         # Frontend dependencies and build scripts
@@ -137,6 +140,8 @@ datum/
    ```bash
    cp .env.example .env
    ```
+   > [!NOTE]
+   > For semantic vector search, create a free cluster at [Qdrant Cloud](https://cloud.qdrant.io/) and configure `QDRANT_URL` and `QDRANT_API_KEY` in `backend/.env`. For local offline testing, setting `QDRANT_URL=:memory:` is supported.
 
 5. Launch the FastAPI server:
    ```bash
@@ -193,23 +198,21 @@ npm run build
    - Section-aware chunking (300-450 words, 60-word overlap, hierarchy-preserving forward merge).
    - SQLite persistence for documents and chunks with foreign key cascade.
 
-3. **Phase 3: Dense Retrieval & Vector Database**
-   - Chunk embedding using domain-adapted sentence transformers.
-   - Qdrant vector index with payload metadata filtering by document ID and standard version.
-   - Groq inference pipeline outputting structured citation indices linked to bounding boxes.
+3. **Phase 3: Dense Retrieval & Vector Database** *(Complete)*
+   - In-memory preloaded embedding model (`BAAI/bge-small-en-v1.5`) with batch encoding (size 32).
+   - Asymmetric query instruction prefixing for bge models (`Represent this sentence for searching relevant passages: `).
+   - Qdrant vector store integration with document-scoped payload filtering.
+   - Upload pipeline progression (`processing` -> `embedding` -> `ready`) with graceful failure isolation.
+   - Retrieval endpoint `POST /documents/{id}/search` for manual retrieval quality inspection.
 
-4. **Phase 4: Full-Stack Integration & Deployment**
+4. **Phase 4: LLM Generation & Citation Grounding (Groq)** *(Upcoming)*
+   - Groq inference pipeline (Llama 3.3 70B) outputting structured citation indices linked to bounding boxes.
+   - Strict hallucination guardrails grounding claims only in retrieved chunk passages.
+
+5. **Phase 5: Full-Stack Integration & Safety Traceability**
    - Connect frontend API client to FastAPI backend streaming endpoints.
    - In-line PDF viewer highlighting exact sentence bounding boxes inside the evidence drawer.
-   - Docker Compose deployment for multi-container orchestration.
-
-5. **Phase 5: ASIL-D & Safety Traceability Validation**
-   - Audit trail export for ISO 26262 tool qualification.
-   - Automated citation accuracy evaluation against benchmark AUTOSAR test suites.
-
-5. **Phase 5: ASIL-D & Safety Traceability Validation**
-   - Audit trail export for ISO 26262 tool qualification.
-   - Automated citation accuracy evaluation against benchmark AUTOSAR test suites.
+   - Audit trail export for ISO 26262 / ASIL-D tool qualification.
 
 ---
 

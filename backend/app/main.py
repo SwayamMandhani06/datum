@@ -1,21 +1,37 @@
+import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db, CORS_ORIGINS
+from app.embeddings import init_embedding_model
+from app.vectorstore import init_vectorstore
 from app.routes import documents
+
+logger = logging.getLogger("datum.main")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager to run startup tasks and database initialization."""
+    """Lifespan context manager to run startup tasks and service initialization."""
+    # 1. Initialize SQLite database
     await init_db()
+
+    # 2. Warm up embedding model in memory
+    try:
+        init_embedding_model()
+    except Exception as e:
+        logger.error(f"Failed to initialize embedding model: {e}")
+
+    # 3. Validate Qdrant connection and ensure collection exists
+    init_vectorstore()
+
     yield
 
 
 app = FastAPI(
-    title="Datum Document Ingestion API",
-    description="FastAPI service for AUTOSAR HLD document parsing and section-aware chunking.",
-    version="0.1.0",
+    title="Datum Document Ingestion & Retrieval API",
+    description="FastAPI service for AUTOSAR HLD document parsing, section-aware chunking, and dense vector retrieval.",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -38,5 +54,6 @@ async def health_check():
     return {
         "status": "healthy",
         "service": "datum-backend",
-        "phase": "ingestion-and-chunking",
+        "phase": "retrieval-and-embeddings",
     }
+
