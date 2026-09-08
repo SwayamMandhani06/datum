@@ -18,6 +18,11 @@ venv/
 env/
 *.egg-info/
 .pytest_cache/
+*.db
+*.sqlite
+*.sqlite3
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # System & IDE
 .DS_Store
