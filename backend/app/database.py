@@ -33,6 +33,10 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "datum_chunks").strip()
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5").strip()
 
+# Groq Configurations
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
+
 # Ensure upload directory exists
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -77,6 +81,21 @@ async def init_db() -> None:
             );
         """)
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS chat_history (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                question TEXT NOT NULL,
+                answer TEXT NOT NULL,
+                citations_json TEXT NOT NULL,
+                confidence TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+            );
+        """)
+
         await db.execute("CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks (document_id);")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_chunks_doc_chunk_idx ON chunks (document_id, chunk_index);")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_chat_history_doc_created ON chat_history (document_id, created_at DESC);")
         await db.commit()
+

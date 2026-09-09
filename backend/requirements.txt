@@ -9,3 +9,4 @@ aiosqlite>=0.20.0
 torch
 sentence-transformers
 qdrant-client
+groq

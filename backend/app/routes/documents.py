@@ -1,3 +1,5 @@
+import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,12 +13,19 @@ from app.models import (
     SearchRequest,
     SearchResponse,
     SearchResultItem,
+    AskRequest,
+    AskResponse,
+    ChatHistoryItem,
+    CitationItem,
 )
 from app.parsing import parse_pdf
 from app.chunking import build_chunks_from_blocks
 from app.vectorstore import upsert_chunks, delete_document_vectors, search
+from app.generation import generate_answer, validate_citations, evaluate_confidence
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["documents"])
+
 
 
 def sanitize_filename(filename: str) -> str:
@@ -88,7 +97,27 @@ async def upload_document(file: UploadFile = File(...)):
     # 4. Parse PDF and generate section-aware chunks
     try:
         page_count, parsed_blocks = parse_pdf(str(file_path))
-        chunks = build_chunks_from_blocks(parsed_blocks)
+        raw_chunks = build_chunks_from_blocks(parsed_blocks)
+
+        # Deduplicate chunks by exact text within the same document as a safety net
+        seen_chunk_texts = set()
+        unique_chunks = []
+        for c in raw_chunks:
+            normalized_c_text = " ".join(c.text.split())
+            if normalized_c_text in seen_chunk_texts:
+                logger.warning(
+                    f"Skipping duplicate chunk text in document '{doc_id}' "
+                    f"(index={c.chunk_index}, words={c.word_count}): '{c.text[:80]}...'"
+                )
+                continue
+            seen_chunk_texts.add(normalized_c_text)
+            unique_chunks.append(c)
+
+        # Re-index unique chunks sequentially
+        for idx, c in enumerate(unique_chunks):
+            c.chunk_index = idx
+
+        chunks = unique_chunks
 
         chunk_dicts = [
             {
@@ -103,6 +132,7 @@ async def upload_document(file: UploadFile = File(...)):
             }
             for c in chunks
         ]
+
 
         async with get_db() as db:
             # Batch insert chunks
@@ -332,4 +362,149 @@ async def search_document_chunks(document_id: str, payload: SearchRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Vector search failed: {str(e)}",
         )
+
+
+@router.post("/{document_id}/ask", response_model=AskResponse)
+async def ask_document_question(document_id: str, payload: AskRequest):
+    """
+    Ask a question against an ingested document:
+    - Verifies document readiness (status 'ready' and non-zero chunks, else 409 Conflict)
+    - Retrieves top 5 chunks via vector similarity
+    - Synthesizes an evidence-grounded answer using Groq
+    - Validates bracket citations [N], stripping any invented markers
+    - Evaluates retrieval/answer confidence
+    - Records the Q&A exchange in the chat_history audit log
+    """
+    # 1. Validate document existence, status, and chunk count
+    async with get_db() as db:
+        async with db.execute(
+            """
+            SELECT d.id, d.status, COUNT(c.id) AS chunk_count
+            FROM documents d
+            LEFT JOIN chunks c ON d.id = c.document_id
+            WHERE d.id = ?
+            GROUP BY d.id
+            """,
+            (document_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document with id '{document_id}' not found.",
+                )
+            if row["status"] != "ready":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Document is not ready for questions (current status: '{row['status']}').",
+                )
+            if row["chunk_count"] == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Document has no ingested content chunks to query.",
+                )
+
+    # 2. Retrieve relevant chunks from vector store
+    search_results = search(
+        document_id=document_id,
+        query=payload.question,
+        top_k=5,
+    )
+
+    top_score = search_results[0]["score"] if search_results else 0.0
+
+    # 3. Format sources with 1-based sequential markers
+    sources = [
+        {
+            "marker": idx + 1,
+            "chunk_id": r["chunk_id"],
+            "section_title": r.get("section_title"),
+            "page_start": r["page_start"],
+            "page_end": r["page_end"],
+            "text": r["text"],
+        }
+        for idx, r in enumerate(search_results)
+    ]
+
+    # 4. Generate answer with Groq LLM
+    raw_answer = generate_answer(question=payload.question, sources=sources)
+
+    # 5. Validate citations and strip ungrounded markers
+    cleaned_answer, validated_citations = validate_citations(raw_answer, sources)
+
+    # 6. Evaluate confidence flag
+    confidence, low_confidence_reason = evaluate_confidence(
+        top_retrieval_score=top_score,
+        answer=cleaned_answer,
+    )
+
+    # 7. Record exchange in chat_history audit log
+    history_id = str(uuid.uuid4())
+    now_iso = datetime.now(timezone.utc).isoformat()
+    citations_json = json.dumps(validated_citations)
+
+    async with get_db() as db:
+        await db.execute(
+            """
+            INSERT INTO chat_history (id, document_id, question, answer, citations_json, confidence, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                history_id,
+                document_id,
+                payload.question.strip(),
+                cleaned_answer,
+                citations_json,
+                confidence,
+                now_iso,
+            ),
+        )
+        await db.commit()
+
+    return AskResponse(
+        answer=cleaned_answer,
+        citations=[CitationItem(**c) for c in validated_citations],
+        confidence=confidence,
+        low_confidence_reason=low_confidence_reason,
+    )
+
+
+@router.get("/{document_id}/history", response_model=List[ChatHistoryItem])
+async def get_document_history(document_id: str):
+    """
+    Retrieve audit history of past Q&A exchanges for a document, ordered most recent first.
+    """
+    async with get_db() as db:
+        # Check document existence
+        async with db.execute("SELECT id FROM documents WHERE id = ?", (document_id,)) as cursor:
+            doc = await cursor.fetchone()
+            if not doc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document with id '{document_id}' not found.",
+                )
+
+        async with db.execute(
+            """
+            SELECT id, document_id, question, answer, citations_json, confidence, created_at
+            FROM chat_history
+            WHERE document_id = ?
+            ORDER BY created_at DESC
+            """,
+            (document_id,),
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                ChatHistoryItem(
+                    id=row["id"],
+                    document_id=row["document_id"],
+                    question=row["question"],
+                    answer=row["answer"],
+                    citations=[CitationItem(**c) for c in json.loads(row["citations_json"])],
+                    confidence=row["confidence"],
+                    created_at=row["created_at"],
+                )
+                for row in rows
+            ]
+
 

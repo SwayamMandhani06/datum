@@ -31,6 +31,8 @@ Datum is currently in **Phase 2: Ingestion & Section-Aware Chunking**. The front
 - **Section-Aware Chunking**: 300–450 word target windows, ~60-word intra-section overlap, boundary preservation, and small section (< 100 words) forward merging without crossing major section boundaries.
 - **SQLite Storage**: Asynchronous database persistence via `aiosqlite` with foreign key cascade deletion for documents and chunks.
 - **Dense Vector Retrieval**: Integrated semantic search using `sentence-transformers` (`BAAI/bge-small-en-v1.5`) and `qdrant-client` vector store with document-scoped payload filtering.
+- **LLM-Generated, Citation-Grounded Answers**: Strict evidence-grounded question answering powered by Groq (`llama-3.1-8b-instant`) with automatic citation validation, invented marker stripping, and confidence evaluation.
+- **Audit Trail & Traceability**: SQLite `chat_history` table and `GET /documents/{id}/history` endpoint preserving exact question-answer pairs, validated citation excerpts, and confidence ratings for safety audits.
 
 ---
 
@@ -49,7 +51,7 @@ Datum is currently in **Phase 2: Ingestion & Section-Aware Chunking**. The front
 | **Database** | SQLite / aiosqlite | 0.20+ async SQLite | Implemented |
 | **Embedding Model** | sentence-transformers | BAAI/bge-small-en-v1.5 | Implemented |
 | **Vector Database** | Qdrant | Cloud / In-Memory | Implemented |
-| **Inference & LLM** | Groq / Llama 3.3 | Groq API | *Planned (Phase 4)* |
+| **Inference & LLM** | Groq / Llama 3.1 | Groq API (`llama-3.1-8b-instant`) | Implemented |
 
 ---
 
@@ -60,7 +62,7 @@ datum/
 ├── .gitignore               # Unified root gitignore (Node + Python + OS)
 ├── README.md                # Project documentation and specifications
 ├── package.json             # Root workspace runner scripts
-├── backend/                 # Backend API service (FastAPI + SQLite + Qdrant)
+├── backend/                 # Backend API service (FastAPI + SQLite + Qdrant + Groq)
 │   ├── app/                 # Application package
 │   │   ├── main.py          # FastAPI application & CORS configuration
 │   │   ├── models.py        # Pydantic request/response schemas
@@ -69,12 +71,13 @@ datum/
 │   │   ├── chunking.py      # Section-aware chunking (300-450 words, 60-word overlap)
 │   │   ├── embeddings.py    # BGE-small singleton embedding & query prefixing
 │   │   ├── vectorstore.py   # Qdrant client, collection init, upsert, delete & search
+│   │   ├── generation.py    # Groq LLM client, grounding prompt, citation sanitization
 │   │   └── routes/
-│   │       └── documents.py # /documents upload, list, chunks, delete, and search
+│   │       └── documents.py # /documents upload, list, chunks, delete, search, ask, and history
 │   ├── uploads/             # Local PDF storage directory (.gitkeep)
 │   ├── requirements.txt     # Python dependencies
 │   ├── .env.example         # Environment configuration template
-│   └── test_pipeline.py     # End-to-end ingestion and vector search test suite
+│   └── test_pipeline.py     # End-to-end ingestion, vector search, and Q&A test suite
 └── frontend/                # React + Vite + TypeScript frontend application
     ├── index.html           # HTML entrypoint with IBM Plex font preconnects
     ├── package.json         # Frontend dependencies and build scripts
@@ -141,7 +144,8 @@ datum/
    cp .env.example .env
    ```
    > [!NOTE]
-   > For semantic vector search, create a free cluster at [Qdrant Cloud](https://cloud.qdrant.io/) and configure `QDRANT_URL` and `QDRANT_API_KEY` in `backend/.env`. For local offline testing, setting `QDRANT_URL=:memory:` is supported.
+   > - For semantic vector search, create a free cluster at [Qdrant Cloud](https://cloud.qdrant.io/) and configure `QDRANT_URL` and `QDRANT_API_KEY` in `backend/.env`. For local offline testing, setting `QDRANT_URL=:memory:` is supported.
+   > - For LLM question answering, create a free API key at [Groq Console](https://console.groq.com/keys) and configure `GROQ_API_KEY` and `GROQ_MODEL=llama-3.1-8b-instant` in `backend/.env`.
 
 5. Launch the FastAPI server:
    ```bash
@@ -201,16 +205,19 @@ npm run build
 3. **Phase 3: Dense Retrieval & Vector Database** *(Complete)*
    - In-memory preloaded embedding model (`BAAI/bge-small-en-v1.5`) with batch encoding (size 32).
    - Asymmetric query instruction prefixing for bge models (`Represent this sentence for searching relevant passages: `).
-   - Qdrant vector store integration with document-scoped payload filtering.
+   - Qdrant vector store integration with document-scoped payload filtering and keyword index.
    - Upload pipeline progression (`processing` -> `embedding` -> `ready`) with graceful failure isolation.
    - Retrieval endpoint `POST /documents/{id}/search` for manual retrieval quality inspection.
 
-4. **Phase 4: LLM Generation & Citation Grounding (Groq)** *(Upcoming)*
-   - Groq inference pipeline (Llama 3.3 70B) outputting structured citation indices linked to bounding boxes.
-   - Strict hallucination guardrails grounding claims only in retrieved chunk passages.
+4. **Phase 4: LLM Generation & Citation Grounding (Groq)** *(Complete)*
+   - Groq inference integration (`llama-3.1-8b-instant`) with low temperature (0.1) and rate-limit backoff.
+   - Strict grounding system prompt forbidding outside domain assumptions.
+   - Automated citation validation stripping ungrounded/invented markers from generated answers.
+   - Dual confidence scoring flagging low-relevance retrieval (<0.5) or insufficient document details.
+   - Traceability audit log (`chat_history` SQLite table) and `GET /documents/{id}/history` endpoint.
 
-5. **Phase 5: Full-Stack Integration & Safety Traceability**
-   - Connect frontend API client to FastAPI backend streaming endpoints.
+5. **Phase 5: Full-Stack Integration & Safety Traceability** *(Upcoming)*
+   - Connect frontend API client to FastAPI backend endpoints (`/documents/upload`, `/documents/{id}/ask`).
    - In-line PDF viewer highlighting exact sentence bounding boxes inside the evidence drawer.
    - Audit trail export for ISO 26262 / ASIL-D tool qualification.
 

@@ -55,3 +55,40 @@ class SearchResultItem(BaseModel):
 class SearchResponse(BaseModel):
     results: list[SearchResultItem]
 
+
+class CitationItem(BaseModel):
+    marker: int
+    chunk_id: str
+    section_title: Optional[str] = None
+    page_start: int
+    page_end: int
+    excerpt: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AskRequest(BaseModel):
+    question: str
+
+
+class AskResponse(BaseModel):
+    answer: str
+    citations: list[CitationItem]
+    confidence: str
+    low_confidence_reason: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ChatHistoryItem(BaseModel):
+    id: str
+    document_id: str
+    question: str
+    answer: str
+    citations: list[CitationItem]
+    confidence: str
+    created_at: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+

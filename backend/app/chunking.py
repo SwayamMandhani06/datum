@@ -1,6 +1,9 @@
+import logging
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 from app.parsing import ParsedBlock
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -21,12 +24,13 @@ class Section:
     blocks: List[ParsedBlock]
 
 
-def build_chunks_from_blocks(blocks: List[ParsedBlock]) -> List[Chunk]:
+def build_chunks_from_blocks(blocks: List[ParsedBlock], min_body_words: int = 15) -> List[Chunk]:
     """
     Perform section-aware chunking on a stream of ParsedBlocks.
     - Target chunk size: 300-450 words.
     - 60-word overlap on multi-chunk splits.
     - Hierarchy-aware forward merging for small sections (< 100 words).
+    - Minimum-content guard: merges forward or discards sections/chunks with < 15 body words.
     - Page-accurate page_start and page_end tracking.
     """
     if not blocks:
@@ -81,7 +85,37 @@ def build_chunks_from_blocks(blocks: List[ParsedBlock]) -> List[Chunk]:
         merged_sections.append(curr_sec)
         i += 1
 
-    # 3. Generate chunks from merged sections
+    # 2b. Minimum-content guard: merge forward or discard sections with < 15 body words
+    guarded_sections: List[Section] = []
+    i = 0
+    while i < len(merged_sections):
+        curr_sec = merged_sections[i]
+        total_sec_words = sum(len(b.text.split()) for b in curr_sec.blocks)
+        title_words = len(curr_sec.heading_title.split()) if curr_sec.heading_title else 0
+        body_words = max(0, total_sec_words - title_words)
+
+        if body_words < min_body_words:
+            if i + 1 < len(merged_sections):
+                next_sec = merged_sections[i + 1]
+                logger.warning(
+                    f"Near-empty section '{curr_sec.heading_title}' on page {curr_sec.blocks[0].page_number} "
+                    f"has only {body_words} body words (< {min_body_words}). Merging forward into '{next_sec.heading_title}'."
+                )
+                next_sec.blocks = curr_sec.blocks + next_sec.blocks
+                i += 1
+                continue
+            else:
+                logger.warning(
+                    f"Discarding trailing near-empty section '{curr_sec.heading_title}' on page {curr_sec.blocks[0].page_number} "
+                    f"with {body_words} body words (< {min_body_words})."
+                )
+                i += 1
+                continue
+
+        guarded_sections.append(curr_sec)
+        i += 1
+
+    # 3. Generate chunks from guarded sections
     final_chunks: List[Chunk] = []
     chunk_counter = 0
 
@@ -89,7 +123,7 @@ def build_chunks_from_blocks(blocks: List[ParsedBlock]) -> List[Chunk]:
     OVERLAP_WORDS = 60
     STEP_WORDS = TARGET_MAX_WORDS - OVERLAP_WORDS  # 360 words
 
-    for sec in merged_sections:
+    for sec in guarded_sections:
         # Build token stream mapped to page numbers: (word_string, page_number)
         word_items: List[Tuple[str, int]] = []
         for b in sec.blocks:
@@ -147,4 +181,21 @@ def build_chunks_from_blocks(blocks: List[ParsedBlock]) -> List[Chunk]:
 
                 start_idx += STEP_WORDS
 
-    return final_chunks
+    # 4. Final safety guard: filter any residual chunks with < min_body_words
+    clean_chunks: List[Chunk] = []
+    for c in final_chunks:
+        t_words = len(c.section_title.split()) if c.section_title else 0
+        b_words = c.word_count - t_words if (c.section_title and c.text.startswith(c.section_title)) else c.word_count
+        if b_words < min_body_words:
+            logger.warning(
+                f"Discarding near-empty final chunk {c.chunk_index} ('{c.section_title}') with only {b_words} body words (< {min_body_words})."
+            )
+            continue
+        clean_chunks.append(c)
+
+    # Re-index chunks sequentially
+    for idx, c in enumerate(clean_chunks):
+        c.chunk_index = idx
+
+    return clean_chunks
+

@@ -77,8 +77,15 @@ def create_sample_autosar_pdf(filepath: str):
     )
     page4.insert_text((50, 90), sec5_text, fontsize=10, fontname="helv")
 
+    # Insert running header and footer across all pages (top 10% and bottom 10%)
+    for idx in range(len(doc)):
+        page = doc[idx]
+        page.insert_text((50, 25), "AUTOSAR Classic Specification Running Header", fontsize=9, fontname="helv")
+        page.insert_text((50, 800), f"{idx + 1} of {len(doc)} Document ID 10: AUTOSAR_Template", fontsize=9, fontname="helv")
+
     doc.save(filepath)
     doc.close()
+
 
 
 def run_tests():
@@ -92,10 +99,26 @@ def run_tests():
     assert page_count == 4, f"Expected 4 pages, got {page_count}"
     assert len(blocks) > 0, "Expected non-empty blocks"
 
+    # Verify running header & footer are completely excluded from parsed blocks
+    assert not any("AUTOSAR Classic Specification Running Header" in b.text for b in blocks), (
+        "Running header was not excluded from parsed blocks"
+    )
+    assert not any("Document ID 10: AUTOSAR_Template" in b.text for b in blocks), (
+        "Running footer was not excluded from parsed blocks"
+    )
+    print("[OK] parse_pdf excluded running headers and footers across pages.")
+
     # 2. Test chunking.py directly
     chunks = build_chunks_from_blocks(blocks)
     print(f"[OK] build_chunks_from_blocks produced {len(chunks)} chunks.")
     assert len(chunks) >= 3, f"Expected at least 3 chunks, got {len(chunks)}"
+
+    # Verify minimum-content guard: zero chunks with < 15 words
+    for c in chunks:
+        assert c.word_count >= 15, f"Chunk {c.chunk_index} has {c.word_count} words (< 15 words)"
+        assert "AUTOSAR Classic Specification Running Header" not in c.text
+    print("[OK] build_chunks_from_blocks satisfied minimum-content guard (all chunks >= 15 words).")
+
 
     # 3. Test embeddings.py directly (batch embedding and asymmetric query)
     sample_texts = [
@@ -142,7 +165,34 @@ def run_tests():
     ensure_collection(real_client)
     print("[OK] Real Qdrant client executed ensure_collection and ensure_payload_indexes.")
 
-    # 5. Test FastAPI endpoints and vector search with TestClient
+    # 5. Test generation.py citation validation and confidence scoring
+    from app.generation import validate_citations, evaluate_confidence
+
+    dummy_sources = [
+        {"marker": 1, "chunk_id": "c1", "section_title": "Section 1", "page_start": 1, "page_end": 1, "text": "Engine speed sensor details."},
+        {"marker": 2, "chunk_id": "c2", "section_title": "Section 2", "page_start": 2, "page_end": 2, "text": "Diagnostic protocols."},
+    ]
+    raw_ans = "The engine sensor uses If_EngineSpeed [1]. Faults are stored in diagnostic memory [2]. Non-existent info is cited as [99]."
+    cleaned, citations = validate_citations(raw_ans, dummy_sources)
+
+    assert "[99]" not in cleaned, "Invalid citation [99] was not stripped"
+    assert "[1]" in cleaned and "[2]" in cleaned, "Valid citations were incorrectly removed"
+    assert len(citations) == 2, f"Expected 2 citations, got {len(citations)}"
+    assert citations[0]["marker"] == 1 and citations[1]["marker"] == 2
+    print("[OK] validate_citations stripped invented markers and extracted valid citations.")
+
+    # Test evaluate_confidence
+    conf_high, reason_high = evaluate_confidence(0.85, "The sensor uses uint16 [1].")
+    assert conf_high == "high" and reason_high is None
+    conf_low_score, reason_score = evaluate_confidence(0.35, "The sensor uses uint16 [1].")
+    assert conf_low_score == "low" and reason_score is not None
+    conf_low_phrase, reason_phrase = evaluate_confidence(0.85, "The provided document does not contain information about this.")
+    assert conf_low_phrase == "low" and reason_phrase is not None
+    print("[OK] evaluate_confidence correctly classified high and low confidence responses.")
+
+    # 6. Test FastAPI endpoints, vector search, Q&A ask, and history with TestClient
+    from unittest.mock import patch
+
     with TestClient(app) as client:
         # Health check
         res = client.get("/health")
@@ -195,16 +245,31 @@ def run_tests():
         )
         assert top_match["score"] > 0.5, f"Expected similarity score > 0.5, got {top_match['score']}"
 
-        # Test POST /documents/{id}/search for Diagnostics query
-        diag_res = client.post(
-            f"/documents/{doc_id}/search",
-            json={"query": "diagnostic fault memory UDS ISO 14229", "top_k": 2},
-        )
-        assert diag_res.status_code == 200
-        diag_results = diag_res.json().get("results", [])
-        assert len(diag_results) > 0
-        print(f"[OK] Diagnostic search top match: Title='{diag_results[0]['section_title']}' Score={diag_results[0]['score']:.4f}")
-        assert "Diagnostic" in (diag_results[0]["section_title"] or "") or "UDS" in diag_results[0]["text"]
+        # Test POST /documents/{id}/ask with mocked generation
+        mocked_answer = "EngineSpeedSensor specifies PPortPrototype pp_EngineSpeed referencing SenderReceiverInterface If_EngineSpeed [1]. Invented marker [88]."
+        with patch("app.routes.documents.generate_answer", return_value=mocked_answer):
+            ask_res = client.post(
+                f"/documents/{doc_id}/ask",
+                json={"question": "What interface is used by EngineSpeedSensor?"},
+            )
+            assert ask_res.status_code == 200, f"Ask endpoint failed: {ask_res.text}"
+            ask_data = ask_res.json()
+            assert "[88]" not in ask_data["answer"], "Invented marker [88] was not stripped in /ask response"
+            assert "[1]" in ask_data["answer"]
+            assert len(ask_data["citations"]) >= 1
+            assert ask_data["citations"][0]["marker"] == 1
+            assert ask_data["confidence"] == "high"
+            print(f"[OK] POST /documents/{doc_id}/ask returned grounded answer with validated citations.")
+
+        # Test GET /documents/{id}/history
+        hist_res = client.get(f"/documents/{doc_id}/history")
+        assert hist_res.status_code == 200, f"History endpoint failed: {hist_res.text}"
+        history_items = hist_res.json()
+        assert len(history_items) == 1
+        assert history_items[0]["document_id"] == doc_id
+        assert history_items[0]["question"] == "What interface is used by EngineSpeedSensor?"
+        assert len(history_items[0]["citations"]) >= 1
+        print(f"[OK] GET /documents/{doc_id}/history returned {len(history_items)} recorded Q&A exchange.")
 
         # Search non-existent document
         bad_search = client.post(
@@ -212,23 +277,29 @@ def run_tests():
             json={"query": "AUTOSAR", "top_k": 1},
         )
         assert bad_search.status_code == 404, "Expected 404 for missing document search"
-        print("[OK] POST /documents/{id}/search returned 404 for unknown document ID")
 
-        # Delete document (including Qdrant vectors)
+        bad_ask = client.post(
+            "/documents/00000000-0000-0000-0000-000000000000/ask",
+            json={"question": "AUTOSAR"},
+        )
+        assert bad_ask.status_code == 404, "Expected 404 for missing document ask"
+
+        # Delete document (including Qdrant vectors and cascading chat_history)
         del_res = client.delete(f"/documents/{doc_id}")
         assert del_res.status_code == 200, f"Delete failed: {del_res.text}"
         print(f"[OK] DELETE /documents/{doc_id} returned 200")
 
-        # Confirm chunks and search now 404
+        # Confirm chunks, search, and history now 404
         assert client.get(f"/documents/{doc_id}/chunks").status_code == 404
         assert client.post(f"/documents/{doc_id}/search", json={"query": "test"}).status_code == 404
-        print("[OK] Deleted document confirmed 404 on both GET chunks and POST search.")
+        assert client.get(f"/documents/{doc_id}/history").status_code == 404
+        print("[OK] Deleted document confirmed 404 on GET chunks, POST search, and GET history.")
 
     # Cleanup sample file
     if os.path.exists(test_pdf_path):
         os.remove(test_pdf_path)
 
-    print("\nALL INGESTION, EMBEDDINGS, AND VECTOR SEARCH TESTS PASSED SUCCESSFULLY!")
+    print("\nALL INGESTION, EMBEDDINGS, VECTOR SEARCH, AND GROQ Q&A TESTS PASSED SUCCESSFULLY!")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,11 @@
+import logging
 import re
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List, Optional, Set, Tuple
 import pymupdf
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -13,10 +17,10 @@ class ParsedBlock:
     text: str
 
 
-# Numbered heading pattern, e.g. "4 Software Component", "4.2 Sensor-Actuator", "4.2.1 Ports"
+# Numbered heading pattern, e.g. "4 Software Component", "4.2 Sensor-Actuator", "B.5.3 Ecu description", "D.1 Constraint History"
 NUMBERED_HEADING_REGEX = re.compile(
-    r"^(?:Section\s+)?(\d+(?:\.\d+)*)\.?\s+([A-Za-z0-9_].*)$",
-    re.IGNORECASE
+    r"^(?:Section\s+)?((?:[A-Za-z]|\d+)(?:\.\d+)*)\.?(?:\s+([A-Za-z0-9_].*))?$",
+    re.IGNORECASE,
 )
 
 
@@ -25,11 +29,109 @@ def clean_text(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def normalize_pattern_text(text: str) -> str:
+    """Normalize digits to '#' and lowercase for robust header/footer frequency matching."""
+    cleaned = clean_text(text).lower()
+    return re.sub(r"\b\d+\b", "#", cleaned)
+
+
+def find_running_headers_footers(
+    doc: pymupdf.Document,
+    top_margin_pct: float = 0.10,
+    bot_margin_pct: float = 0.10,
+    min_page_ratio: float = 0.20,
+) -> Tuple[Set[str], Set[str]]:
+    """
+    Perform a document-wide pass to identify repeated running headers and footers.
+    Collects short text spans (<= 12 words) in the top and bottom margins across all pages.
+    If an identical or near-identical (ignoring page numbers) pattern appears on more than
+    ~20% of pages (minimum 2 pages), it is classified as a running header or footer.
+    """
+    total_pages = doc.page_count
+    if total_pages < 2:
+        return set(), set()
+
+    candidates = defaultdict(set)  # (norm_text, "top"|"bot") -> set of page indices
+
+    for page_idx in range(total_pages):
+        page = doc[page_idx]
+        h = page.rect.height
+        top_limit = h * (top_margin_pct + 0.02)
+        bot_limit = h * (1.0 - bot_margin_pct - 0.02)
+
+        page_dict = page.get_text("dict")
+        for b in page_dict.get("blocks", []):
+            if b.get("type") == 0:  # text block
+                for line in b.get("lines", []):
+                    bbox = line.get("bbox", [0, 0, 0, 0])
+                    is_top = bbox[1] <= top_limit
+                    is_bot = bbox[3] >= bot_limit
+
+                    if is_top or is_bot:
+                        spans = line.get("spans", [])
+                        text = " ".join(s.get("text", "").strip() for s in spans if s.get("text", "").strip())
+                        text = clean_text(text)
+                        if not text:
+                            continue
+                        words = text.split()
+                        if len(words) <= 12:
+                            norm_text = normalize_pattern_text(text)
+                            pos = "top" if is_top else "bot"
+                            candidates[(norm_text, pos)].add(page_idx)
+
+    threshold = max(2, int(total_pages * min_page_ratio))
+    top_patterns: Set[str] = set()
+    bot_patterns: Set[str] = set()
+
+    for (norm_text, pos), pages in candidates.items():
+        if len(pages) >= threshold:
+            if pos == "top":
+                top_patterns.add(norm_text)
+            else:
+                bot_patterns.add(norm_text)
+
+    if top_patterns or bot_patterns:
+        logger.info(
+            f"Detected {len(top_patterns)} running header patterns and {len(bot_patterns)} "
+            f"running footer patterns across {total_pages} pages (threshold: {threshold} pages)."
+        )
+
+    return top_patterns, bot_patterns
+
+
+def is_running_header_or_footer(
+    text: str,
+    bbox: List[float],
+    page_height: float,
+    top_patterns: Set[str],
+    bot_patterns: Set[str],
+    top_margin_pct: float = 0.10,
+    bot_margin_pct: float = 0.10,
+) -> bool:
+    """Check if a line matches any detected running header or footer pattern in margin areas."""
+    if not text or (not top_patterns and not bot_patterns):
+        return False
+    words = text.split()
+    if len(words) > 12:
+        return False
+
+    norm_text = normalize_pattern_text(text)
+    top_limit = page_height * (top_margin_pct + 0.02)
+    bot_limit = page_height * (1.0 - bot_margin_pct - 0.02)
+
+    if bbox[1] <= top_limit and norm_text in top_patterns:
+        return True
+    if bbox[3] >= bot_limit and norm_text in bot_patterns:
+        return True
+    return False
+
+
 def parse_pdf(file_path: str) -> Tuple[int, List[ParsedBlock]]:
     """
     Parse a PDF file using PyMuPDF span-level layout analysis.
     Extracts text, identifies section headings, tracks hierarchy,
     and returns (page_count, list of ParsedBlocks).
+    Excludes running headers and footers from headings and body text.
     """
     try:
         doc = pymupdf.open(file_path)
@@ -40,6 +142,9 @@ def parse_pdf(file_path: str) -> Tuple[int, List[ParsedBlock]]:
     if page_count == 0:
         doc.close()
         raise ValueError("PDF document is empty (0 pages).")
+
+    # Document-wide pass: detect running headers and footers
+    top_patterns, bot_patterns = find_running_headers_footers(doc)
 
     all_blocks: List[ParsedBlock] = []
     total_words = 0
@@ -53,6 +158,7 @@ def parse_pdf(file_path: str) -> Tuple[int, List[ParsedBlock]]:
         for page_idx in range(page_count):
             page = doc[page_idx]
             page_num = page_idx + 1
+            page_height = page.rect.height
 
             page_dict = page.get_text("dict")
             blocks = page_dict.get("blocks", [])
@@ -103,6 +209,12 @@ def parse_pdf(file_path: str) -> Tuple[int, List[ParsedBlock]]:
                     if not line_text:
                         continue
 
+                    line_bbox = line.get("bbox", [0, 0, 0, 0])
+
+                    # Exclude running headers/footers entirely
+                    if is_running_header_or_footer(line_text, line_bbox, page_height, top_patterns, bot_patterns):
+                        continue
+
                     total_words += len(line_text.split())
 
                     # Calculate max font size and bold flag for this line
@@ -126,10 +238,12 @@ def parse_pdf(file_path: str) -> Tuple[int, List[ParsedBlock]]:
                     detected_level = 1
 
                     if (is_larger or is_bold) and numbered_match:
-                        # Numbered heading pattern (e.g. "4.2 Engine Speed Sensor")
-                        is_heading_candidate = True
                         num_str = numbered_match.group(1)
-                        detected_level = len(num_str.split("."))
+                        title_part = numbered_match.group(2)
+                        # Valid numbered heading requires either a multi-part number (e.g. 4.2) or trailing title words
+                        if "." in num_str or title_part:
+                            is_heading_candidate = True
+                            detected_level = len(num_str.split("."))
                     elif (is_larger or (is_bold and max_size >= body_font_size)) and word_count < 12:
                         # Short bold/larger text that doesn't end with typical sentence punctuation
                         if not line_text.endswith((".", ";", ",", ":")):
@@ -171,3 +285,4 @@ def parse_pdf(file_path: str) -> Tuple[int, List[ParsedBlock]]:
         )
 
     return page_count, all_blocks
+
