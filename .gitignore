@@ -23,6 +23,8 @@ env/
 *.sqlite3
 backend/uploads/*
 !backend/uploads/.gitkeep
+scratch/
+backend/scratch/
 
 # System & IDE
 .DS_Store

@@ -4,7 +4,7 @@ import type { DocumentItem } from '../types';
 import { ThemeToggle } from './ThemeToggle';
 
 interface HeaderProps {
-  activeDocument: DocumentItem;
+  activeDocument: DocumentItem | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({ activeDocument }) => {
@@ -25,12 +25,20 @@ export const Header: React.FC<HeaderProps> = ({ activeDocument }) => {
 
         <div className="hidden lg:flex items-center space-x-3 text-scale-13 pl-4 border-l border-border-theme">
           <span className="text-text-muted">Active scope:</span>
-          <span className="font-mono text-text-primary bg-surface-2 px-2 py-0.5 border border-border-theme">
-            {activeDocument.filename}
-          </span>
-          <span className="text-text-muted">
-            {activeDocument.pageCount} pages indexed
-          </span>
+          {activeDocument ? (
+            <>
+              <span className="font-mono text-text-primary bg-surface-2 px-2 py-0.5 border border-border-theme">
+                {activeDocument.filename}
+              </span>
+              <span className="text-text-muted">
+                {activeDocument.pageCount} pages indexed
+              </span>
+            </>
+          ) : (
+            <span className="font-mono text-text-muted bg-surface-2 px-2 py-0.5 border border-border-theme">
+              No document selected
+            </span>
+          )}
         </div>
       </div>
 

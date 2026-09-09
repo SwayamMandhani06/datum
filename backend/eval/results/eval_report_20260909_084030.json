@@ -1,0 +1,263 @@
+{
+  "timestamp": "20260909_084030",
+  "backend_url": "http://127.0.0.1:8000",
+  "judge_model": "openai/gpt-oss-20b",
+  "total_questions": 11,
+  "structural_pass_count": 9,
+  "structural_pass_rate_pct": 81.82,
+  "groundedness_pass_count": 10,
+  "groundedness_pass_rate_pct": 90.91,
+  "results": [
+    {
+      "index": 1,
+      "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+      "question": "According to TPS_ECUR_01015, what is the primary goal of the ECU Resource Template regarding Basic Software configuration?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "hardware",
+        "basic software",
+        "configuration"
+      ],
+      "answer": "The primary goal of the ECU Resource Template, as stated in TPS_ECUR_01015, is to support the configuration of the AUTOSAR Basic Software by providing information on the respective hardware and on how the hardware is connected to each other. [1]",
+      "confidence": "high",
+      "citations": [
+        {
+          "marker": 1,
+          "chunk_id": "7d6a1433-7de7-40e3-ac3e-8baf862b061d",
+          "section_title": "General Hardware Description",
+          "page_start": 13,
+          "page_end": 13,
+          "excerpt": "General Hardware Description The ECU Resource Template utilizes the basic building blocks \u2022 hardware elements \u2022 hierarchies of hardware elements \u2022 hardware pins \u2022 hardware pin groups \u2022 hardware connections to describe the relevant aspects of the actual hardware. The ECU Resource Template allows however to choose the appropriate level of detail in the description of the hard- ware, depending on the use case. It also allows to describe arbitrary hardware and its connections. [TPS_ECUR_01015] Support of AUTOSAR Basic Software configuration \u2308 The primary goal of the ECU Resource Template is to support the configuration of the AUTOSAR Basic Software by providing information on the respective hardware and the how the hardware is connected to each other. \u230b ( RS_ECUR_00005 ) In figure 2.1 the overview of the involved classes is shown."
+        }
+      ],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "The generated answer directly quotes the statement from the cited excerpt: \"The primary goal of the ECU Resource Template is to support the configuration of the AUTOSAR Basic Software by providing information on the respective hardware and the how the hardware is connected to each other.\" This matches the claim made in the answer, so all statements are fully grounded."
+    },
+    {
+      "index": 2,
+      "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+      "question": "According to constraint constr_3512, what restriction applies to the multiple instantiation of hardware elements?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "multiple instantiation",
+        "nestedelement"
+      ],
+      "answer": "According to constraint\u202fconstr_3512, a hardware element may not be instantiated more than once. Each\u202fHwElement can be the target of only a single\u202fnestedElement reference; therefore, if the same hardware element is required in several places, each occurrence must be described by a distinct\u202fHwElement clone, along with cloned structural features such as pin groups, pins, and connections. The same\u202fHwType may still be referenced by multiple\u202fHwElement clones, but the element itself cannot be reused without cloning its description. [1][2]",
+      "confidence": "high",
+      "citations": [
+        {
+          "marker": 1,
+          "chunk_id": "fa2dc3db-fec4-4966-bea9-efad4cc2728c",
+          "section_title": "ture in the XML description but as linked list. \u230b ()",
+          "page_start": 18,
+          "page_end": 19,
+          "excerpt": "ture in the XML description but as linked list. \u230b () This modeling allows the usage of different ARXML files for the description of the con- tainer hardware element and the nested hardware elements. E.g. the CPU is described by a Semiconductor-Vendor, the project specific usage of such a CPU is described by the ECU vendor. [constr_3512] No support of multiple instantiation \u2308 An essential constraint is that each HwElement can only be target of one nestedElement reference. This means that there is no concept of multiple instantiation of hardware elements. If the same hardware element shall be used several times (using the nestedElement reference) each occurrence has to have its own description. This is also true for nested elements of the referenced nested element. \u230b () Thus the hardware element and all its structural features (hardware pin groups, hard- ware pins and hardware connections) need to be cloned. There is however the possi- bility to reference the same HwType from several HwElement clones."
+        },
+        {
+          "marker": 2,
+          "chunk_id": "b19ee9c9-4baf-46a1-b7c5-c8b1feac3cf7",
+          "section_title": "Added Constraints in R4.1.1",
+          "page_start": 52,
+          "page_end": 52,
+          "excerpt": "Added Constraints in R4.1.1 Number Heading [ constr_3511 ] HwType shall not have a reference to another HwType [ constr_3512 ] No support of multiple instantiation [ constr_3513 ] Scope of connections"
+        }
+      ],
+      "structural_pass": false,
+      "structural_failure_reason": "Missing expected keywords: ['multiple instantiation']",
+      "grounded_pass": true,
+      "judge_reasoning": "All statements in the generated answer are directly supported by the cited excerpts. The excerpts explicitly state that there is no support for multiple instantiation, that each HwElement can only be the target of one nestedElement reference, that repeated use requires a distinct HwElement clone with cloned structural features, and that the same HwType can be referenced by multiple HwElement clones. No claim in the answer extends beyond what is provided in the excerpts."
+    },
+    {
+      "index": 3,
+      "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+      "question": "What is the purpose of HwPinGroup and where can an HwPinGroup exist inside?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "hwpin",
+        "hwelement"
+      ],
+      "answer": "The **HwPinGroup** is a meta\u2011class that represents a bundle of hardware pins used to describe dedicated connectivity channels for hardware elements. It can model grouped hardware ports such as ADC and DIO, structure port information hierarchically, and at the detailed level describe individual hardware pins. An **HwPinGroup** may only be contained inside a **HwElement** or nested within another **HwPinGroup**. [2]",
+      "confidence": "high",
+      "citations": [
+        {
+          "marker": 2,
+          "chunk_id": "f7f1bbd9-6fc3-4a45-bd31-fe64b6b920e6",
+          "section_title": "Hardware Pin and Pin Group",
+          "page_start": 19,
+          "page_end": 20,
+          "excerpt": "2.4 Hardware Pin and Pin Group The HwPinGroup allows to describe dedicated channels of connectivity for hardware elements. It can be used to describe grouped hardware ports like ADC and DIO. It can structure the port information hierarchically. At the detailed level it can be used to describe individual hardware pins. Each HwPinGroup is Identifiable . A HwPinGroup can only exist inside a HwEle- ment or another HwPinGroup . Each HwPinGroup inherits from HwDescriptionEntity and is therefore capable to describe a set of attributes (see section 2.1 for details). The content of the HwPinGroup is aggregated in the role hwPinGroupContent . Class HwPinGroup Package M2::AUTOSARTemplates::EcuResourceTemplate Note This meta-class represents the ability to describe groups of pins which are used to connect hardware elements. This group acts as a bundle of pins. Thereby they allow to describe high level connections. Pin groups can even be nested. Base ARObject , HwDescriptionEntity , Identifiable , MultilanguageReferrable , Referrable Aggregated by HwElement . hwPinGroup , HwPinGroupContent . hwPinGroup Attribute Type Mult. Kind Note hwPinGroup Content HwPinGroupContent 0..1 aggr This aggregation describes the contained pins/pin groups. Table 2.5: HwPinGroup The HwPinGroupContent can contain HwPinGroup and HwPin . The HwPinGroup- Content is defined as \u00ab atpMixed \u00bb (see Generic Structure Template [ 2 ]). The ele- ments contained in the HwPinGroupContent ( HwPinGroup and HwPin ) can occur in an arbitrary order and multiple times. This allows to describe the ordered occurrence of pins and pin groups within pin groups. One major use-case is to describe physical connectors and plugs with chambers and pins. Class <<atpMixed>> HwPinGroupContent Package M2::AUTOSARTemplates::EcuResourceTemplate Note This meta-class specifies a mixture of hwPins and hwPinGroups. Base ARObject Aggregated by HwPinGroup . hwPinGroupContent Attribute Type Mult. Kind Note hwPin HwPin 0..1 aggr This aggregation represents a hardware pin in a hardware pin group. Stereotypes: atpSplitable; atpVariation Tags: atp.Splitkey=hwPin.shortName, hwPin.variation Point.shortLabel vh.latestBindingTime=systemDesignTime xml.roleWrapperElement=false hwPinGroup HwPinGroup 0..1 aggr This aggregation represents a nested hardware pin group. Stereotypes: atpSplitable; atpVariation Tags: atp.Splitkey=hwPinGroup.shortName, hwPin Group.variationPoint.shortLabel vh.latestBindingTime=systemDesignTime xml.roleWrapperElement=false"
+        }
+      ],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "All statements in the generated answer are directly supported by the cited excerpt: the excerpt defines HwPinGroup as a meta\u2011class for groups of pins, states it describes dedicated connectivity channels, grouped ports like ADC/DIO, hierarchical port structure, detailed pin description, and that it can only exist inside a HwElement or another HwPinGroup."
+    },
+    {
+      "index": 4,
+      "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+      "question": "According to constraint constr_3513, what features may a hardware connection connect?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "hierarchical scope",
+        "hardware element",
+        "nestedelement"
+      ],
+      "answer": "According to constraint\u202fconstr_3513, a hardware connection may connect only features that are both within the hierarchical scope of the hardware element that contains the connection. The hierarchical scope includes all features belonging to that hardware element and all features belonging to hardware elements that are referenced directly or indirectly through the nestedElement relation from that element. [3]",
+      "confidence": "high",
+      "citations": [
+        {
+          "marker": 3,
+          "chunk_id": "351cb77a-a784-4c94-8a23-0b8199f17202",
+          "section_title": "chical scope encloses",
+          "page_start": 22,
+          "page_end": 23,
+          "excerpt": "[constr_3513] Scope of connections \u2308 Each hardware connection shall only connect features which both are in the hierarchical scope of the hardware element. The hierar- chical scope encloses \u2022 all features belonging to the hardware element containing the connection \u2022 all features belonging to hardware elements which are referenced directly and indirectly in the nestedElement relation from the hardware element containing connection. \u230b () Especially it is allowed to specify connections in hardware elements which are in deeper hierarchical level and also connections which cross hierarchical levels. In the example from figure B.1 the following connections are allowed: \u2022 connections specified in the scope of hardware element \"MyEcu\" \u2013 all the shown connections can be specified on this level \u2013 even the connections inside another hierarchical hardware element (e.g. be- tween \"Pu1\" and \"Can\") can be specified on this level \u2013 even the connections crossing hierarchical levels (e.g. between \"Can\" and \"Trcv\") can be specified on this level \u2022 connections specified in the scope of hardware element \"MicroController\" \u2013 only the connections inside the hardware element \"MicroController\" (e.g. be- tween \"Pu1\" and \"Can\") can be specified."
+        }
+      ],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "The answer directly paraphrases the cited excerpt, stating that a hardware connection may only connect features that are both within the hierarchical scope of the containing hardware element, and that the hierarchical scope includes all features of that element and all features of hardware elements referenced directly or indirectly via nestedElement. This matches the text in the excerpt verbatim, with no additional or unsupported claims."
+    },
+    {
+      "index": 5,
+      "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+      "question": "What is the main distinction between a library and a normal Basic Software module regarding RTE access and scheduled functions?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "library",
+        "rte"
+      ],
+      "answer": "The provided document does not contain information about this.",
+      "confidence": "low",
+      "citations": [],
+      "structural_pass": false,
+      "structural_failure_reason": "Confidence was 'low' for answerable question; No citations returned for answerable question; Missing expected keywords: ['library', 'rte']",
+      "grounded_pass": false,
+      "judge_reasoning": "No citations provided to substantiate answer."
+    },
+    {
+      "index": 6,
+      "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+      "question": "What does the meta-class BswModuleEntry model according to TPS_BSWMDT_04007?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "c-function",
+        "signature"
+      ],
+      "answer": "The meta\u2011class **BswModuleEntry** models the signature of a C\u2011function call.[1]",
+      "confidence": "high",
+      "citations": [
+        {
+          "marker": 1,
+          "chunk_id": "2993c996-5119-4131-946f-00170a19f733",
+          "section_title": "BSW Module Entry",
+          "page_start": 30,
+          "page_end": 31,
+          "excerpt": "BSW Module Entry [TPS_BSWMDT_04007] BswModuleEntry \u2308 The meta-class BswModuleEntry is used to model the signature of a C-function call \u230b ( RS_BSWMD_00011 , RS_BSWMD_- 00038 , RS_BSWMD_00041 , RS_BSWMD_00042 ) , see figure 4.1 . ARElement AtpBlueprint AtpBlueprintable BswModuleEntry + bswEntryKind: BswEntryKindEnum [0..1] + callType: BswCallType [0..1] + executionContext: BswExecutionContext [0..1] + functionPrototypeEmitter: NameToken [0..1] + isReentrant: Boolean [0..1] + isSynchronous: Boolean [0..1] + role: Identifier [0..1] + serviceId: PositiveInteger [0..1] + swServiceImplPolicy: SwServiceImplPolicyEnum [0..1] Identifiable SwServiceArg + direction: ArgumentDirectionEnum [0..1] \u00abatpVariation\u00bb SwDataDefProps + additionalNativeTypeQualifier: NativeDeclarationString [0..1] + displayFormat: DisplayFormatString [0..1] + displayPresentation: DisplayPresentationEnum [0..1] + stepSize: Float [0..1] + swAlignment: AlignmentType [0..1] + swCalibrationAccess: SwCalibrationAccessEnum [0..1] + swImplPolicy: SwImplPolicyEnum [0..1] + swIntendedResolution: Numerical [0..1] + swInterpolationMethod: Identifier [0..1] + swIsVirtual: Boolean [0..1] \u00abatpVariation\u00bb + swValueBlockSize: Numerical [0..1] + swValueBlockSizeMult: Numerical [0..*] {ordered} AtpBlueprint AtpBlueprintable BaseType SwBaseType SwPointerTargetProps + targetCategory: Identifier [0..1] \u00abenumeration\u00bb BswCallType regular callback interrupt scheduled callout \u00abenumeration\u00bb BswExecutionContext task interruptCat1 interruptCat2 hook unspecified AbstractImplementationDataType ImplementationDataType + dynamicArraySizeProfile: String [0..1] + isStructWithOptionalElement: Boolean [0..1] + typeEmitter: NameToken [0..1] AbstractImplementationDataTypeElement ImplementationDataTypeElement + arrayImplPolicy: ArrayImplPolicyEnum [0..1] + arraySizeHandling: ArraySizeHandlingEnum [0..1] + arraySizeSemantics: ArraySizeSemanticsEnum [0..1] + isOptional: Boolean [0..1] \u00abatpVariation\u00bb + arraySize: PositiveInteger [0..1] \u00abenumeration\u00bb SwServiceImplPolicyEnum standard inline macro inlineConditional +functionPointerSignature 0..1 \u00abatpSplitable\u00bb +swDataDefProps 0..1 \u00abatpSplitable\u00bb +swPointerTargetProps 0..1 +returnType 0..1 \u00abatpVariation,atpSplitable\u00bb +subElement 0..* {ordered} \u00abatpVariation,atpSplitable\u00bb +argument 0..* {ordered} \u00abatpVariation,atpSplitable\u00bb +subElement 0..* {ordered} +baseType 0..1 \u00abatpSplitable\u00bb +swDataDefProps 0..1 \u00abatpSplitable\u00bb +swDataDefProps 0..1"
+        }
+      ],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "The answer states that BswModuleEntry models the signature of a C\u2011function call, which is exactly the wording found in the cited excerpt: \"The meta\u2011class BswModuleEntry is used to model the signature of a C\u2011function call.\" No additional claims are made, so the answer is fully grounded."
+    },
+    {
+      "index": 7,
+      "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+      "question": "According to TPS_BSWMDT_04073, which package is the meta-class ExclusiveArea imported from, and what is its purpose?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "exclusivearea",
+        "commonstructure"
+      ],
+      "answer": "According to TPS_BSWMDT_04073, the meta\u2011class **ExclusiveArea** is imported from the **CommonStructure** package of the meta\u2011model (M2::AUTOSARTemplates::CommonStructure::InternalBehavior) [1]. Its purpose is to define a region in which an executable entity is protected from preemption, thereby preventing the entity from being interrupted while it runs within that exclusive area [1].",
+      "confidence": "high",
+      "citations": [
+        {
+          "marker": 1,
+          "chunk_id": "be84a785-cf42-4f99-b5b2-09f522140c60",
+          "section_title": "BSW Exclusive Areas",
+          "page_start": 82,
+          "page_end": 83,
+          "excerpt": "5.5 BSW Exclusive Areas [TPS_BSWMDT_04073] Exclusive area in BSW \u2308 The meta-class ExclusiveArea (including the associations from ExecutableEntity ) is not specific for the Basic Software, is is imported from the CommonStructure package of the meta-model and is defined as follows: \u230b ( RS_BSWMD_00060 ) Class ExclusiveArea Package M2::AUTOSARTemplates::CommonStructure::InternalBehavior Note Prevents an executable entity running in the area from being preempted. Base ARObject , Identifiable , MultilanguageReferrable , Referrable Aggregated by InternalBehavior . exclusiveArea Attribute Type Mult. Kind Note \u2013 \u2013 \u2013 \u2013 \u2013 Table 5.16: ExclusiveArea For certain implementations of the ExclusiveArea mechanisms it is advantageous if each BswModuleEntity uses a distinct set of enter and exit APIs. This distinct set of APIs support ExclusiveArea implementations where for the highest prior RunnableEntity (s) the lock is omitted. This is possible when the highest prior BswModuleEntity (s) cannot get interrupted by BswModuleEntity s scheduled with lower priority in any circumstance. To support this kind of implementations the software component description has to state that it requests APIs individually for each BswMod- uleEntity accessing an ExclusiveArea with the canEnterExclusiveArea manner. Class BswExclusiveAreaPolicy Package M2::AUTOSARTemplates::BswModuleTemplate::BswBehavior Note The ExclusiveArea for which the BSW Scheduler using this policy. Base ARObject , BswApiOptions \u25bd 2 This does not exclude configurations where sender and receiver are executed in the same partition within the limits defined by contextLimitation . \u25b3 Class BswExclusiveAreaPolicy Aggregated by BswInternalBehavior . exclusiveAreaPolicy Attribute Type Mult. Kind Note apiPrinciple ApiPrincipleEnum 0..1 attr Specifies for this ExclusiveArea if either one common set of Enter and Exit APIs for the whole BSW module is requested from the SchM or if the set of Enter and Exit APIs is expected per BswModuleEntity. The default value is \"common\". exclusiveArea ExclusiveArea 0..1 ref The ExclusiveArea for which the BSW Scheduler using this policy. Table 5.17: BswExclusiveAreaPolicy [constr_10280] Existence of the reference in the role BswExclusiveAreaPol- icy . exclusiveArea \u2308 For each BswExclusiveAreaPolicy , the reference in the role exclusiveArea shall exist at the time when the configuration of the BSW module is finished . \u230b () Enumeration ApiPrincipleEnum Package M2::AUTOSARTemplates::CommonStructure::InternalBehavior Note This enumeration represents the ability to control the granularity of API generation. Aggregated by BswExclusiveAreaPolicy . apiPrinciple , SwcExclusiveAreaPolicy.apiPrinciple Literal Description common The Rte or SchM API is provided for the whole software component / BSW Module Tags: atp.EnumerationLiteralIndex=0 perExecutable The Rte or SchM API is provided for a specific ExecutableEntity of a software component / BSW Module Tags: atp.EnumerationLiteralIndex=1 Table 5.18: ApiPrincipleEnum [TPS_BSWMDT_04154] ExclusiveArea is entered and exit by common set of API \u2308 If the"
+        }
+      ],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "The cited excerpt explicitly states that the meta\u2011class ExclusiveArea is imported from the CommonStructure package of the meta\u2011model (Package M2::AUTOSARTemplates::CommonStructure::InternalBehavior) and includes a note that it prevents an executable entity running in the area from being preempted. These statements directly support both claims in the generated answer: the import location and the purpose of protecting an executable entity from preemption. No claim in the answer extends beyond what is provided in the excerpt."
+    },
+    {
+      "index": 8,
+      "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+      "question": "According to constr_4043, what condition must the period attribute of a BswTimingEvent satisfy?",
+      "expect_answerable": true,
+      "expected_keywords": [
+        "period",
+        "greater than"
+      ],
+      "answer": "The period attribute of a BswTimingEvent must be greater than\u202f0. [3]",
+      "confidence": "high",
+      "citations": [
+        {
+          "marker": 3,
+          "chunk_id": "247e263b-277b-42fe-ae42-548e52e9f6e8",
+          "section_title": "greater than 0. \u230b ()",
+          "page_start": 89,
+          "page_end": 89,
+          "excerpt": "figuration of the BSW module is finished . \u230b () [constr_4043] Period of BswTimingEvent \u2308 BswTimingEvent . period shall be greater than 0. \u230b () Class BswBackgroundEvent Package M2::AUTOSARTemplates::BswModuleTemplate::BswBehavior Note A recurring BswEvent which is used to perform background activities. It is similar to a BswTimingEvent but has no fixed time period and is activated only with low priority. Base ARObject , AbstractEvent , BswEvent , BswScheduleEvent , Identifiable , MultilanguageReferrable , Referrable Aggregated by BswInternalBehavior . event Attribute Type Mult. Kind Note \u2013 \u2013 \u2013 \u2013 \u2013"
+        }
+      ],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "The cited excerpt explicitly states \"BswTimingEvent . period shall be greater than 0.\" The answer reproduces this condition verbatim, so every claim in the answer is directly supported by the excerpt."
+    },
+    {
+      "index": 9,
+      "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+      "question": "What is the UDS negative response code for securityAccess denied (NRC 0x33) and how should the diagnostic session be reset?",
+      "expect_answerable": false,
+      "expected_keywords": [],
+      "answer": "The provided document does not contain information about this.",
+      "confidence": "low",
+      "citations": [],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "Correctly refused to answer out-of-scope question without fabricating claims."
+    },
+    {
+      "index": 10,
+      "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+      "question": "How is DOIP (Diagnostics over IP) routing activation handled in the TCP/IP socket connection table?",
+      "expect_answerable": false,
+      "expected_keywords": [],
+      "answer": "The provided document does not contain information about this.",
+      "confidence": "low",
+      "citations": [],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "Correctly refused to answer out-of-scope question without fabricating claims."
+    },
+    {
+      "index": 11,
+      "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+      "question": "What are the exact bit timing register settings and nominal prescaler values for the Bosch M_CAN controller at 500 kbps?",
+      "expect_answerable": false,
+      "expected_keywords": [],
+      "answer": "The provided document does not contain information about this.",
+      "confidence": "low",
+      "citations": [],
+      "structural_pass": true,
+      "structural_failure_reason": null,
+      "grounded_pass": true,
+      "judge_reasoning": "Correctly refused to answer out-of-scope question without fabricating claims."
+    }
+  ]
+}

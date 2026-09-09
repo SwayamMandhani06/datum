@@ -34,6 +34,7 @@ def get_qdrant_client() -> QdrantClient:
             _client = QdrantClient(
                 url=QDRANT_URL,
                 api_key=QDRANT_API_KEY if QDRANT_API_KEY else None,
+                timeout=60.0,
             )
     return _client
 
@@ -114,6 +115,19 @@ def init_vectorstore() -> bool:
         return False
 
 
+def check_vectorstore_health() -> bool:
+    """Lightweight check to verify Qdrant connectivity."""
+    if not QDRANT_URL:
+        return False
+    try:
+        client = get_qdrant_client()
+        client.get_collections()
+        return True
+    except Exception as e:
+        logger.warning(f"Qdrant health check failed: {e}")
+        return False
+
+
 def upsert_chunks(document_id: str, chunks: List[Dict[str, Any]]) -> None:
     """
     Embed chunk texts using embed_texts (in batches of 32) and upsert points into Qdrant.
@@ -145,10 +159,13 @@ def upsert_chunks(document_id: str, chunks: List[Dict[str, Any]]) -> None:
         for c, emb in zip(chunks, embeddings)
     ]
 
-    client.upsert(
-        collection_name=QDRANT_COLLECTION,
-        points=points,
-    )
+    batch_size = 100
+    for i in range(0, len(points), batch_size):
+        batch = points[i : i + batch_size]
+        client.upsert(
+            collection_name=QDRANT_COLLECTION,
+            points=batch,
+        )
     logger.info(f"Successfully upserted {len(points)} chunk vectors for document {document_id}.")
 
 

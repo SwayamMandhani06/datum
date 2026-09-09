@@ -35,10 +35,11 @@ EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5").strip()
 
 # Groq Configurations
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
+GROQ_MODEL = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b").strip()
 
-# Ensure upload directory exists
+# Ensure storage directories exist
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+DATABASE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 @asynccontextmanager
@@ -94,8 +95,19 @@ async def init_db() -> None:
             );
         """)
 
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS extractions (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL UNIQUE,
+                entities_json TEXT NOT NULL,
+                generated_at TEXT NOT NULL,
+                FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+            );
+        """)
+
         await db.execute("CREATE INDEX IF NOT EXISTS idx_chunks_document_id ON chunks (document_id);")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_chunks_doc_chunk_idx ON chunks (document_id, chunk_index);")
         await db.execute("CREATE INDEX IF NOT EXISTS idx_chat_history_doc_created ON chat_history (document_id, created_at DESC);")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_extractions_document_id ON extractions (document_id);")
         await db.commit()
 

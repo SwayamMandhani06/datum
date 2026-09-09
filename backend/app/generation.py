@@ -31,8 +31,10 @@ Strict Grounding Rules:
 2. You are EXPLICITLY FORBIDDEN from using outside knowledge, assumptions, or general domain conventions about AUTOSAR, automotive software, or ECU architecture beyond what is stated directly in the sources.
 3. Every factual claim, interface name, port prototype, timing value, or structural requirement you state MUST be immediately cited with its corresponding bracket marker, e.g. [1] or [2].
 4. Use ONLY marker numbers that exist in the provided sources. NEVER invent marker numbers or cite sources not provided.
-5. If the provided sources do not contain enough information to answer the question, state plainly and directly: "The provided document does not contain information about this." Do NOT speculate or attempt to answer from outside knowledge.
-6. Write in direct, technical prose matching an engineering peer review. Avoid bullet-point lists unless the question explicitly asks for a list or enumeration."""
+5. NEVER add extraneous illustrative examples, hardware types (such as sensors, actuators, buses, or peripherals), or inferred attributes unless they appear directly in the provided sources.
+6. When stating requirements or constraints, adhere strictly to the normative verbs used in the text (e.g., do not turn "should not" into "is not allowed", nor infer converse permissions for other entities unless explicitly stated).
+7. If the provided sources do not contain enough information to answer the question, state plainly and directly: "The provided document does not contain information about this." Do NOT speculate or attempt to answer from outside knowledge.
+8. Write in direct, technical prose matching an engineering peer review. Avoid bullet-point lists unless the question explicitly asks for a list or enumeration."""
 
 
 INSUFFICIENT_INFO_PHRASES = [
@@ -74,7 +76,7 @@ def generate_answer(question: str, sources: List[Dict[str, Any]]) -> str:
     sources_text = format_sources_prompt(sources)
     user_prompt = f"Sources:\n{sources_text}\n\nQuestion: {question.strip()}\nAnswer:"
 
-    retries = 2
+    retries = 4
     for attempt in range(retries + 1):
         try:
             logger.info(
@@ -83,6 +85,7 @@ def generate_answer(question: str, sources: List[Dict[str, Any]]) -> str:
             response = client.chat.completions.create(
                 model=GROQ_MODEL,
                 temperature=0.1,
+                max_tokens=800,
                 messages=[
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
@@ -93,7 +96,7 @@ def generate_answer(question: str, sources: List[Dict[str, Any]]) -> str:
 
         except RateLimitError as e:
             if attempt < retries:
-                backoff_sec = 2.0 * (attempt + 1)
+                backoff_sec = 4.0 * (attempt + 1)
                 logger.warning(
                     f"Groq rate limit encountered (429). Retrying in {backoff_sec:.1f}s..."
                 )
@@ -137,20 +140,29 @@ def validate_citations(
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """
     Extract all bracket markers [N] from the answer.
+    Normalizes Unicode bracket variants (e.g. lenticular 【1】 or fullwidth ［1］) to standard [1].
     Strips any invented markers not in sources from the answer text.
     Builds and returns (cleaned_answer, citations_list) containing only valid, actually-used citations.
     """
     valid_map = {s["marker"]: s for s in sources}
 
+    # Normalize Unicode bracket variants (e.g. lenticular 【1】 or fullwidth ［1］) to standard [1]
+    normalized_answer = (
+        raw_answer.replace("【", "[")
+        .replace("】", "]")
+        .replace("［", "[")
+        .replace("］", "]")
+    )
+
     # 1. Strip ungrounded/invented markers (e.g. [99] when only [1] and [2] exist)
     def sanitize_marker(match):
         marker_num = int(match.group(1))
         if marker_num in valid_map:
-            return match.group(0)
+            return f"[{marker_num}]"
         # Strip invented marker tag
         return ""
 
-    cleaned_answer = re.sub(r"\[(\d+)\]", sanitize_marker, raw_answer)
+    cleaned_answer = re.sub(r"\[(\d+)\]", sanitize_marker, normalized_answer)
     # Clean up any duplicate spacing left by stripped tags
     cleaned_answer = re.sub(r"[ \t]+", " ", cleaned_answer)
     cleaned_answer = re.sub(r" \.", ".", cleaned_answer).strip()

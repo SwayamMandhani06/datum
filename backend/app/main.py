@@ -2,9 +2,9 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import init_db, CORS_ORIGINS
+from app.database import init_db, CORS_ORIGINS, GROQ_API_KEY
 from app.embeddings import init_embedding_model
-from app.vectorstore import init_vectorstore
+from app.vectorstore import init_vectorstore, check_vectorstore_health
 from app.routes import documents
 
 logger = logging.getLogger("datum.main")
@@ -50,10 +50,13 @@ app.include_router(documents.router)
 
 @app.get("/health", tags=["health"])
 async def health_check():
-    """Healthcheck endpoint for monitoring."""
+    """Healthcheck endpoint for monitoring and post-deployment smoke tests."""
+    qdrant_ok = check_vectorstore_health()
+    groq_ok = bool(GROQ_API_KEY and GROQ_API_KEY.strip())
+    status_str = "ok" if (qdrant_ok and groq_ok) else "degraded"
     return {
-        "status": "healthy",
-        "service": "datum-backend",
-        "phase": "retrieval-and-embeddings",
+        "status": status_str,
+        "qdrant_connected": qdrant_ok,
+        "groq_configured": groq_ok,
     }
 

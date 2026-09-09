@@ -1,10 +1,12 @@
+import csv
+import io
 import json
 import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
-from fastapi import APIRouter, UploadFile, File, HTTPException, status
+from typing import List, Optional
+from fastapi import APIRouter, UploadFile, File, HTTPException, status, Query, Response
 from app.database import get_db, UPLOAD_DIR, MAX_UPLOAD_MB, MAX_UPLOAD_BYTES
 from app.models import (
     DocumentResponse,
@@ -17,11 +19,14 @@ from app.models import (
     AskResponse,
     ChatHistoryItem,
     CitationItem,
+    ExtractedEntity,
+    ExtractionResult,
 )
 from app.parsing import parse_pdf
 from app.chunking import build_chunks_from_blocks
 from app.vectorstore import upsert_chunks, delete_document_vectors, search
 from app.generation import generate_answer, validate_citations, evaluate_confidence
+from app.extraction import extract_document_entities
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -67,7 +72,7 @@ async def upload_document(file: UploadFile = File(...)):
                     if file_path.exists():
                         file_path.unlink()
                     raise HTTPException(
-                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         detail=f"File exceeds maximum allowed size of {MAX_UPLOAD_MB}MB.",
                     )
                 f.write(chunk)
@@ -506,5 +511,118 @@ async def get_document_history(document_id: str):
                 )
                 for row in rows
             ]
+
+
+async def _get_or_create_extraction(
+    document_id: str,
+    force_refresh: bool = False,
+    max_batches: Optional[int] = None,
+) -> tuple[ExtractionResult, str]:
+    """Helper to retrieve cached extraction or run a fresh extraction pass."""
+    async with get_db() as db:
+        async with db.execute("SELECT id, filename, status FROM documents WHERE id = ?", (document_id,)) as cursor:
+            doc = await cursor.fetchone()
+            if not doc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document with id '{document_id}' not found.",
+                )
+            if doc["status"] != "ready":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Document is not ready for extraction (current status: '{doc['status']}').",
+                )
+            filename = doc["filename"]
+
+        if not force_refresh:
+            async with db.execute(
+                "SELECT entities_json, generated_at FROM extractions WHERE document_id = ?",
+                (document_id,),
+            ) as cursor:
+                cached = await cursor.fetchone()
+                if cached:
+                    raw_entities = json.loads(cached["entities_json"])
+                    return (
+                        ExtractionResult(
+                            document_id=document_id,
+                            entities=[ExtractedEntity(**e) for e in raw_entities],
+                            generated_at=cached["generated_at"],
+                        ),
+                        filename,
+                    )
+
+    # Run extraction sweep
+    result = await extract_document_entities(document_id, max_batches=max_batches)
+    entities_json = json.dumps([e.model_dump() for e in result.entities])
+
+    async with get_db() as db:
+        await db.execute(
+            """
+            INSERT INTO extractions (id, document_id, entities_json, generated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(document_id) DO UPDATE SET
+                entities_json = excluded.entities_json,
+                generated_at = excluded.generated_at
+            """,
+            (str(uuid.uuid4()), document_id, entities_json, result.generated_at),
+        )
+        await db.commit()
+
+    return result, filename
+
+
+@router.get("/{document_id}/extract", response_model=ExtractionResult)
+async def get_document_extraction(
+    document_id: str,
+    force_refresh: bool = Query(False, description="Force re-running the extraction sweep bypassing cache"),
+    max_batches: Optional[int] = Query(None, description="Optional limit on number of batches to process"),
+):
+    """
+    Extract technical entities (components, ports, interfaces, signals) across all chunks of a document.
+    Results are cached in SQLite; use ?force_refresh=true to re-run.
+    """
+    result, _ = await _get_or_create_extraction(document_id, force_refresh=force_refresh, max_batches=max_batches)
+    return result
+
+
+@router.get("/{document_id}/extract/export")
+async def export_document_extraction(
+    document_id: str,
+    format: str = Query("json", pattern="^(csv|json)$", description="Export file format ('csv' or 'json')"),
+):
+    """
+    Export the extracted structured entities as a downloadable CSV or JSON file.
+    """
+    result, filename = await _get_or_create_extraction(document_id, force_refresh=False)
+    base_name = sanitize_filename(Path(filename).stem)
+
+    if format == "json":
+        json_content = json.dumps(result.model_dump(), indent=2)
+        return Response(
+            content=json_content,
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}_extractions.json"'},
+        )
+    else:
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Name", "Type", "Description", "Section", "Page Start", "Page End", "Chunk ID"])
+        for ent in result.entities:
+            writer.writerow(
+                [
+                    ent.name,
+                    ent.entity_type,
+                    ent.description,
+                    ent.section_title or "",
+                    ent.page_start,
+                    ent.page_end,
+                    ent.source_chunk_id,
+                ]
+            )
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}_extractions.csv"'},
+        )
 
 

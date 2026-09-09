@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Literal
 from pydantic import BaseModel, ConfigDict
 
 
@@ -88,6 +88,26 @@ class ChatHistoryItem(BaseModel):
     citations: list[CitationItem]
     confidence: str
     created_at: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExtractedEntity(BaseModel):
+    name: str
+    entity_type: Literal["component", "port", "interface", "signal", "other"]
+    description: str
+    section_title: Optional[str] = None
+    page_start: int
+    page_end: int
+    source_chunk_id: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ExtractionResult(BaseModel):
+    document_id: str
+    entities: list[ExtractedEntity]
+    generated_at: str
 
     model_config = ConfigDict(from_attributes=True)
 

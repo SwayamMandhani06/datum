@@ -1,0 +1,68 @@
+[
+  {
+    "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+    "question": "According to TPS_ECUR_01015, what is the primary goal of the ECU Resource Template regarding Basic Software configuration?",
+    "expect_answerable": true,
+    "expected_keywords": ["hardware", "basic software", "configuration"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+    "question": "According to constraint constr_3512, what restriction applies to the multiple instantiation of hardware elements?",
+    "expect_answerable": true,
+    "expected_keywords": ["hwelement", "nestedelement"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+    "question": "What is the purpose of HwPinGroup and where can an HwPinGroup exist inside?",
+    "expect_answerable": true,
+    "expected_keywords": ["hwpin", "hwelement"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+    "question": "According to constraint constr_3513, what features may a hardware connection connect?",
+    "expect_answerable": true,
+    "expected_keywords": ["hierarchical scope", "hardware element", "nestedelement"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+    "question": "According to section 2.1, how can the services of a library be called, and does this require going via the RTE?",
+    "expect_answerable": true,
+    "expected_keywords": ["library", "rte"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+    "question": "What does the meta-class BswModuleEntry model according to TPS_BSWMDT_04007?",
+    "expect_answerable": true,
+    "expected_keywords": ["c-function", "signature"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+    "question": "According to TPS_BSWMDT_04073, which package is the meta-class ExclusiveArea imported from, and what is its purpose?",
+    "expect_answerable": true,
+    "expected_keywords": ["exclusivearea", "commonstructure"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+    "question": "According to constr_4043, what condition must the period attribute of a BswTimingEvent satisfy?",
+    "expect_answerable": true,
+    "expected_keywords": ["period", "greater than"]
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+    "question": "What is the UDS negative response code for securityAccess denied (NRC 0x33) and how should the diagnostic session be reset?",
+    "expect_answerable": false,
+    "expected_keywords": []
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_ECUResourceTemplate.pdf",
+    "question": "How is DOIP (Diagnostics over IP) routing activation handled in the TCP/IP socket connection table?",
+    "expect_answerable": false,
+    "expected_keywords": []
+  },
+  {
+    "document_filename": "AUTOSAR_CP_TPS_BSWModuleDescriptionTemplate.pdf",
+    "question": "What are the exact bit timing register settings and nominal prescaler values for the Bosch M_CAN controller at 500 kbps?",
+    "expect_answerable": false,
+    "expected_keywords": []
+  }
+]
