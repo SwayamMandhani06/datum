@@ -1,123 +1,392 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Design System v2 Theme Variables */
+/* ============================================
+   DATUM — Design System v3
+   Palette: Deep Navy + Electric Indigo/Violet
+   ============================================ */
+
 :root,
 [data-theme="blueprint"] {
-  --surface-0: #14181D;
-  --surface-1: #1B2129;
-  --surface-2: #232B34;
-  --text-primary: #E5E8EB;
-  --text-muted: #8D96A0;
-  --accent: #4B9E96;
-  --accent-soft: rgba(75, 158, 150, 0.15);
-  --flag-amber: #C6974C;
-  --border: rgba(255, 255, 255, 0.08);
-  --glass-fill: rgba(20, 24, 29, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --paper-highlight: rgba(75, 158, 150, 0.22);
+  --surface-0: #080c14;
+  --surface-1: #0f1623;
+  --surface-2: #161e2e;
+  --surface-3: #1d2740;
+  --surface-overlay: rgba(8, 12, 20, 0.85);
+
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+  --text-subtle: #475569;
+
+  --accent: #6366f1;
+  --accent-2: #8b5cf6;
+  --accent-3: #a78bfa;
+  --accent-glow: rgba(99, 102, 241, 0.3);
+  --accent-soft: rgba(99, 102, 241, 0.12);
+  --accent-border: rgba(99, 102, 241, 0.25);
+
+  --success: #10b981;
+  --success-soft: rgba(16, 185, 129, 0.12);
+  --amber: #f59e0b;
+  --amber-soft: rgba(245, 158, 11, 0.12);
+  --red: #ef4444;
+  --red-soft: rgba(239, 68, 68, 0.12);
+
+  --border: rgba(99, 102, 241, 0.12);
+  --border-strong: rgba(99, 102, 241, 0.25);
+
+  --glass-fill: rgba(8, 12, 20, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border-strong: rgba(255, 255, 255, 0.1);
+
+  --gradient-start: #6366f1;
+  --gradient-end: #8b5cf6;
+
+  /* Evidence panel stays consistent */
+  --evidence-bg: #0f1a2e;
+  --evidence-border: rgba(99, 102, 241, 0.3);
+  --evidence-text: #e2e8f0;
+  --evidence-muted: #64748b;
+
   color-scheme: dark;
 }
 
 [data-theme="drafting"] {
-  --surface-0: #F1ECE0;
-  --surface-1: #FAF7EF;
-  --surface-2: #FFFFFF;
-  --text-primary: #20262C;
-  --text-muted: #6D7580;
-  --accent: #2E8880;
-  --accent-soft: rgba(46, 136, 128, 0.12);
-  --flag-amber: #A87A2C;
-  --border: rgba(20, 20, 20, 0.08);
-  --glass-fill: rgba(241, 236, 224, 0.78);
-  --glass-border: rgba(20, 20, 20, 0.08);
-  --paper-highlight: rgba(46, 136, 128, 0.18);
+  --surface-0: #fafbff;
+  --surface-1: #f1f5ff;
+  --surface-2: #ffffff;
+  --surface-3: #e8eeff;
+  --surface-overlay: rgba(250, 251, 255, 0.9);
+
+  --text-primary: #0f172a;
+  --text-secondary: #1e293b;
+  --text-muted: #475569;
+  --text-subtle: #64748b;
+
+  --accent: #4f46e5;
+  --accent-2: #7c3aed;
+  --accent-3: #6d28d9;
+  --accent-glow: rgba(79, 70, 229, 0.2);
+  --accent-soft: rgba(79, 70, 229, 0.08);
+  --accent-border: rgba(79, 70, 229, 0.2);
+
+  --success: #059669;
+  --success-soft: rgba(5, 150, 105, 0.1);
+  --amber: #d97706;
+  --amber-soft: rgba(217, 119, 6, 0.1);
+  --red: #dc2626;
+  --red-soft: rgba(220, 38, 38, 0.1);
+
+  --border: rgba(79, 70, 229, 0.1);
+  --border-strong: rgba(79, 70, 229, 0.2);
+
+  --glass-fill: rgba(250, 251, 255, 0.8);
+  --glass-border: rgba(79, 70, 229, 0.1);
+  --glass-border-strong: rgba(79, 70, 229, 0.2);
+
+  --gradient-start: #4f46e5;
+  --gradient-end: #7c3aed;
+
+  --evidence-bg: #f8f9ff;
+  --evidence-border: rgba(79, 70, 229, 0.2);
+  --evidence-text: #1e293b;
+  --evidence-muted: #64748b;
+
   color-scheme: light;
 }
 
-/* Base styles & typography */
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 html, body {
   margin: 0;
   padding: 0;
+  min-height: 100vh;
   background-color: var(--surface-0);
   color: var(--text-primary);
-  font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 150ms ease, color 150ms ease;
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
-/* Visible keyboard focus states */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
-/* Restrained glassmorphic utility for top nav and floating headers */
-.glass-chrome {
-  background-color: var(--glass-fill);
-  border-color: var(--glass-border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+/* ============================================
+   GRADIENT UTILITIES
+   ============================================ */
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-/* Specific Motion Moments */
-
-/* 1. Hero pulse on citation marker [1] */
-@keyframes markerPulseGlow {
-  0% {
-    box-shadow: 0 0 0 0 rgba(75, 158, 150, 0);
-    background-color: transparent;
-  }
-  35% {
-    box-shadow: 0 0 10px 3px var(--accent);
-    background-color: var(--accent-soft);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(75, 158, 150, 0);
-    background-color: transparent;
-  }
+.gradient-text-amber {
+  background: linear-gradient(135deg, #f59e0b, #fb923c);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.animate-marker-pulse {
-  animation: markerPulseGlow 600ms ease-out forwards;
+.gradient-bg {
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
 }
 
-/* 2. Workspace citation click underline glow */
-@keyframes underlineGlowKeyframe {
-  0% {
-    text-shadow: 0 0 0 rgba(75, 158, 150, 0);
-    text-decoration-color: var(--accent);
-  }
-  40% {
-    text-shadow: 0 0 8px var(--accent);
-    text-decoration-color: var(--text-primary);
-  }
-  100% {
-    text-shadow: 0 0 0 rgba(75, 158, 150, 0);
-    text-decoration-color: var(--accent);
-  }
+.gradient-bg-subtle {
+  background: linear-gradient(135deg, var(--accent-soft), rgba(139, 92, 246, 0.08));
+}
+
+.gradient-border {
+  position: relative;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+  border-radius: inherit;
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ============================================
+   GLASSMORPHISM
+   ============================================ */
+
+.glass {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+.glass-strong {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-border-strong);
+  backdrop-filter: blur(24px) saturate(200%);
+  -webkit-backdrop-filter: blur(24px) saturate(200%);
+}
+
+.glass-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+
+.glass-card:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px var(--accent-border), 0 8px 32px var(--accent-glow);
+}
+
+/* ============================================
+   GLOW EFFECTS
+   ============================================ */
+
+.glow {
+  box-shadow: 0 0 20px var(--accent-glow), 0 0 60px rgba(99, 102, 241, 0.1);
+}
+
+.glow-sm {
+  box-shadow: 0 0 8px var(--accent-glow);
+}
+
+.glow-border {
+  box-shadow: 0 0 0 1px var(--accent-border), 0 0 20px var(--accent-glow);
+}
+
+/* ============================================
+   AURORA BACKGROUND ANIMATION
+   ============================================ */
+
+@keyframes aurora-1 {
+  0%, 100% { transform: translate(0%, 0%) scale(1); opacity: 0.5; }
+  33% { transform: translate(3%, -4%) scale(1.05); opacity: 0.7; }
+  66% { transform: translate(-2%, 2%) scale(0.95); opacity: 0.5; }
+}
+
+@keyframes aurora-2 {
+  0%, 100% { transform: translate(0%, 0%) scale(1); opacity: 0.4; }
+  33% { transform: translate(-4%, 3%) scale(1.08); opacity: 0.6; }
+  66% { transform: translate(3%, -2%) scale(0.92); opacity: 0.4; }
+}
+
+@keyframes aurora-3 {
+  0%, 100% { transform: translate(0%, 0%) scale(1.2); opacity: 0.3; }
+  50% { transform: translate(2%, -3%) scale(1); opacity: 0.5; }
+}
+
+.aurora-orb-1 {
+  animation: aurora-1 12s ease-in-out infinite;
+}
+.aurora-orb-2 {
+  animation: aurora-2 16s ease-in-out infinite;
+}
+.aurora-orb-3 {
+  animation: aurora-3 10s ease-in-out infinite;
+}
+
+/* ============================================
+   FLOATING GRID DOTS
+   ============================================ */
+
+.grid-dots {
+  background-image: radial-gradient(circle, rgba(99, 102, 241, 0.15) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+[data-theme="drafting"] .grid-dots {
+  background-image: radial-gradient(circle, rgba(79, 70, 229, 0.1) 1px, transparent 1px);
+}
+
+/* ============================================
+   SCROLL REVEAL ANIMATIONS
+   ============================================ */
+
+@keyframes reveal-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes reveal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  70% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes typing-dot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+.reveal-up {
+  animation: reveal-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.reveal-fade {
+  animation: reveal-fade 0.5s ease forwards;
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.15) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
+
+/* ============================================
+   CITATION ANIMATIONS
+   ============================================ */
+
+@keyframes citation-glow {
+  0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); background: transparent; }
+  35% { box-shadow: 0 0 12px 3px var(--accent-glow); background: var(--accent-soft); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); background: transparent; }
 }
 
 .animate-citation-glow {
-  animation: underlineGlowKeyframe 600ms ease-out forwards;
+  animation: citation-glow 650ms ease-out forwards;
 }
 
-/* 3. Built on evidence: soft highlight sweep transition */
-.phrase-highlight {
-  transition: background-color 500ms ease, color 500ms ease;
-  background-color: transparent;
+/* ============================================
+   TYPING INDICATOR
+   ============================================ */
+
+.typing-dot {
+  animation: typing-dot 1.4s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ============================================
+   CUSTOM SCROLLBAR
+   ============================================ */
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
-.phrase-highlight.is-swept {
-  background-color: var(--paper-highlight);
-  border-bottom: 1.5px solid var(--accent);
+/* Evidence panel scrollbar */
+.evidence-scrollbar::-webkit-scrollbar { width: 4px; }
+.evidence-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.evidence-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--accent-border);
+  border-radius: 9999px;
+}
+.evidence-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
 }
 
-/* Respect user preference for reduced motion: all animations instant/no-op */
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
 @media (prefers-reduced-motion: reduce) {
   *, ::before, ::after {
     animation-duration: 0.01ms !important;
@@ -125,49 +394,4 @@ html, body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .animate-marker-pulse,
-  .animate-citation-glow {
-    animation: none !important;
-  }
-  .phrase-highlight {
-    transition: none !important;
-  }
-}
-
-/* Custom scrollbar matching surface tokens */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 3px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: var(--accent);
-}
-
-/* Citation paper drawer scrollbar */
-.paper-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-.paper-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.paper-scrollbar::-webkit-scrollbar-thumb {
-  background: #C8BFAB;
-  border-radius: 3px;
-}
-
-.paper-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #AFA48F;
 }

@@ -10,6 +10,33 @@ interface ConversationViewProps {
   isAsking: boolean;
 }
 
+const SendIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+
+const BotIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/>
+    <path d="M12 7v4M8 15h.01M12 15h.01M16 15h.01"/>
+  </svg>
+);
+
+const AlertIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+);
+
+const SparkleIcon = () => (
+  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3v1M12 20v1M3 12h1M20 12h1M5.64 5.64l.71.71M17.66 17.66l.71.71M5.64 18.36l.71-.71M17.66 6.34l.71-.71"/>
+    <circle cx="12" cy="12" r="4"/>
+  </svg>
+);
+
 export const ConversationView: React.FC<ConversationViewProps> = ({
   document,
   exchanges,
@@ -36,9 +63,7 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
   const handleCitationSelect = (citationId: number, exchangeId: string) => {
     setPulsingCitationId(citationId);
     onCitationClick(citationId, exchangeId);
-    setTimeout(() => {
-      setPulsingCitationId(null);
-    }, 650);
+    setTimeout(() => setPulsingCitationId(null), 700);
   };
 
   useEffect(() => {
@@ -47,94 +72,130 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
 
   return (
     <main className="flex-1 min-w-0 bg-surface-0 flex flex-col h-full relative">
-      {/* Top pane bar: context header with distinct surface-1 background */}
-      <div className="h-11 px-8 border-b border-border-theme flex items-center justify-between text-scale-13 bg-surface-1 flex-shrink-0">
-        <div className="flex items-center space-x-2 truncate">
-          <span className="text-text-muted">Grounded in specification:</span>
+
+      {/* Context bar */}
+      <div className="h-11 px-5 border-b border-border-theme flex items-center justify-between text-xs bg-surface-1/50 flex-shrink-0">
+        <div className="flex items-center gap-2 truncate">
+          <span className="text-text-muted">Grounded in:</span>
           {document ? (
-            <span className="font-mono text-text-primary bg-surface-2 px-1.5 py-0.5 border border-border-theme truncate max-w-sm">
+            <span className="font-mono text-accent bg-accent-soft border border-accent-border px-2 py-0.5 rounded-md truncate max-w-xs">
               {document.filename}
             </span>
           ) : (
-            <span className="font-mono text-text-muted bg-surface-2 px-1.5 py-0.5 border border-border-theme">
+            <span className="font-mono text-text-muted bg-surface-2 border border-border-theme px-2 py-0.5 rounded-md">
               None selected
             </span>
           )}
         </div>
-        <div className="text-text-muted font-mono text-scale-13 hidden sm:block">
-          Exact-page citation mode
-        </div>
+        <span className="text-text-muted hidden sm:block font-mono">Citation mode: exact-page</span>
       </div>
 
-      {/* Scrollable Conversation Thread on solid surface-0 */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-8 py-6 space-y-8 bg-surface-0">
-        {/* Empty States */}
-        {!document ? (
+      {/* Thread area */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-6 space-y-8 bg-surface-0">
+
+        {/* Empty: no document */}
+        {!document && (
           <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-            <div className="max-w-md space-y-3">
-              <div className="text-scale-17 font-medium text-text-primary">
-                No Specification Selected
+            <div className="w-20 h-20 rounded-3xl gradient-bg-subtle border border-accent-border flex items-center justify-center mb-4 animate-float">
+              <SparkleIcon />
+            </div>
+            <h3 className="text-xl font-bold text-text-primary mb-2">No Specification Selected</h3>
+            <p className="text-sm text-text-muted max-w-sm leading-relaxed">
+              Select a document from the left rail or upload an AUTOSAR specification PDF to begin asking grounded engineering questions.
+            </p>
+          </div>
+        )}
+
+        {/* Empty: doc selected but no exchanges */}
+        {document && exchanges.length === 0 && !isAsking && (
+          <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-20 h-20 rounded-3xl gradient-bg flex items-center justify-center mb-4 glow animate-float">
+              <BotIcon />
+            </div>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Ready to Answer</h3>
+            <p className="text-sm text-text-muted max-w-md leading-relaxed mb-6">
+              Ask anything about{' '}
+              <code className="font-mono text-accent bg-accent-soft px-1.5 py-0.5 rounded">
+                {document.filename}
+              </code>
+              . Every answer is synthesized with cited evidence — exact sections and page boundaries from your specification.
+            </p>
+            {document.pageCount > 0 && (
+              <div className="flex items-center gap-2 text-xs text-success font-medium bg-success/10 border border-success/20 px-3 py-1.5 rounded-full">
+                <span className="w-1.5 h-1.5 rounded-full bg-success" />
+                {document.pageCount} pages indexed and ready
               </div>
-              <p className="text-scale-15 text-text-muted leading-relaxed">
-                Select a document from the left rail or upload an AUTOSAR specification PDF to begin asking questions.
-              </p>
+            )}
+
+            {/* Suggested questions */}
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg text-left">
+              {[
+                'What components are defined in this specification?',
+                'What ports does the main component expose?',
+                'What interfaces are referenced in this document?',
+                'Summarize the key constraints defined here.',
+              ].map((q) => (
+                <button
+                  key={q}
+                  onClick={() => onAskQuestion(q)}
+                  disabled={isInputDisabled}
+                  className="text-xs text-left p-3 rounded-xl glass border border-border-theme hover:border-accent-border hover:bg-accent-soft text-text-muted hover:text-text-primary transition-all duration-200 disabled:opacity-40"
+                >
+                  "{q}"
+                </button>
+              ))}
             </div>
           </div>
-        ) : exchanges.length === 0 && !isAsking ? (
-          <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-            <div className="max-w-lg space-y-4">
-              <div className="text-scale-17 font-medium text-text-primary">
-                Grounded Specification Assistant
-              </div>
-              <p className="text-scale-15 text-text-muted leading-relaxed">
-                Ask questions about <span className="font-mono text-text-primary">{document.filename}</span>. Every answer is synthesized with evidence citations referencing exact sections and page boundaries.
-              </p>
-              {document.pageCount > 0 && (
-                <div className="pt-2 text-scale-13 text-text-muted font-mono">
-                  {document.pageCount} pages indexed and ready for retrieval
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          exchanges.map((exchange) => (
-            <article key={exchange.id} className="space-y-4 max-w-3xl mx-auto">
-              {/* User Question: Simple right-aligned text, no bubble chrome */}
-              <div className="flex flex-col items-end">
-                <div className="text-right text-scale-17 font-normal text-text-primary leading-relaxed max-w-xl">
+        )}
+
+        {/* Exchanges */}
+        {exchanges.map((exchange) => (
+          <article key={exchange.id} className="space-y-4 max-w-3xl mx-auto">
+
+            {/* User question */}
+            <div className="flex justify-end">
+              <div className="max-w-lg">
+                <div className="gradient-bg rounded-2xl rounded-tr-sm px-4 py-3 text-white text-sm font-medium shadow-glow-sm">
                   {exchange.question}
                 </div>
-                <div className="text-scale-13 text-text-muted mt-1 font-mono">
+                <div className="text-right text-xs text-text-muted mt-1 font-mono pr-1">
                   {exchange.timestamp}
                 </div>
               </div>
+            </div>
 
-              {/* AI Answer: Left-aligned prose with inline citation markers */}
-              <div className="pt-3 border-t border-border-theme">
-                {exchange.error ? (
-                  <div className="p-3 bg-surface-1 border-l-2 border-flag-amber text-scale-13 text-flag-amber space-y-1">
-                    <div className="font-mono font-medium">Unable to answer query:</div>
-                    <div className="leading-relaxed">{exchange.error}</div>
+            {/* AI answer */}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-6 h-6 rounded-full gradient-bg flex items-center justify-center flex-shrink-0">
+                  <BotIcon />
+                </div>
+                <span className="text-xs text-text-muted font-medium">Datum</span>
+              </div>
+
+              {exchange.error ? (
+                <div className="glass-card rounded-2xl rounded-tl-sm p-4 border-l-2 border-flag-amber">
+                  <div className="flex items-center gap-2 mb-1 text-flag-amber font-mono text-xs font-semibold">
+                    <AlertIcon />
+                    Unable to answer
                   </div>
-                ) : (
-                  <>
-                    <div className="text-scale-15 text-text-primary leading-relaxed font-normal">
+                  <p className="text-sm text-text-secondary leading-relaxed">{exchange.error}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="glass-card rounded-2xl rounded-tl-sm p-4">
+                    <div className="text-sm text-text-primary leading-relaxed">
                       {exchange.answerSegments.map((segment, idx) => {
                         if (segment.type === 'text') {
                           return <span key={idx}>{segment.content}</span>;
                         }
-
                         if (segment.type === 'code') {
                           return (
-                            <span
-                              key={idx}
-                              className="font-mono text-scale-13 text-text-primary bg-surface-1 px-1 py-0.5 border border-border-theme"
-                            >
+                            <code key={idx} className="font-mono text-xs text-accent bg-surface-3 px-1.5 py-0.5 rounded border border-accent-border mx-0.5">
                               {segment.content}
-                            </span>
+                            </code>
                           );
                         }
-
                         if (segment.type === 'citation') {
                           const isCurrent = activeCitationId === segment.citationId;
                           const isPulsing = pulsingCitationId === segment.citationId;
@@ -143,51 +204,63 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                               key={idx}
                               type="button"
                               onClick={() => handleCitationSelect(segment.citationId, exchange.id)}
-                              aria-label={`Open citation reference ${segment.citationId}`}
-                              className={`inline-flex items-baseline font-mono text-scale-13 mx-0.5 px-0.5 transition-all cursor-pointer rounded-xs ${
+                              className={`inline-flex items-center font-mono text-[11px] font-semibold mx-0.5 px-1.5 py-0.5 rounded-md border transition-all duration-200 cursor-pointer ${
                                 isPulsing ? 'animate-citation-glow' : ''
                               } ${
                                 isCurrent
-                                  ? 'text-accent font-medium underline decoration-accent decoration-2 underline-offset-4 bg-surface-2'
-                                  : 'text-accent underline decoration-accent underline-offset-2 hover:opacity-80'
+                                  ? 'text-white gradient-bg border-transparent glow-sm'
+                                  : 'text-accent border-accent-border bg-accent-soft hover:bg-accent hover:text-white hover:border-transparent'
                               }`}
+                              aria-label={`Open citation reference ${segment.citationId}`}
                             >
                               [{segment.citationId}]
                             </button>
                           );
                         }
-
                         return null;
                       })}
                     </div>
+                  </div>
 
-                    {/* Low-confidence warning callout */}
-                    {exchange.isLowConfidence && (
-                      <div className="mt-3 p-3 bg-surface-1 border-l-2 border-flag-amber text-scale-13 text-flag-amber space-y-1">
-                        <div className="font-mono font-medium">Low confidence warning:</div>
-                        <div className="leading-relaxed">
-                          {exchange.lowConfidenceReason ||
-                            'Retrieved passages have lower similarity or may not fully cover all aspects of this question. Please verify against source text.'}
-                        </div>
+                  {/* Low confidence warning */}
+                  {exchange.isLowConfidence && (
+                    <div className="mt-2 p-3 rounded-xl bg-amber-soft border border-flag-amber/30 flex items-start gap-2">
+                      <AlertIcon />
+                      <div>
+                        <div className="text-xs font-semibold text-flag-amber mb-0.5">Low confidence</div>
+                        <p className="text-xs text-flag-amber/80 leading-snug">
+                          {exchange.lowConfidenceReason || 'Retrieved passages have lower similarity. Verify against source text.'}
+                        </p>
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
-            </article>
-          ))
-        )}
-
-        {/* Loading Indicator for Question answering */}
-        {isAsking && (
-          <article className="space-y-4 max-w-3xl mx-auto pt-3 border-t border-border-theme">
-            <div className="flex items-center space-x-2 text-scale-13 text-accent font-mono">
-              <span className="inline-block w-2 h-2 rounded-full bg-accent animate-ping motion-reduce:animate-none flex-shrink-0" />
-              <span>Retrieving vector passages & synthesizing answer with Groq LLM...</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
-            <div className="h-16 w-full bg-surface-1/60 border border-border-theme animate-pulse motion-reduce:animate-none p-4 space-y-2">
-              <div className="h-3 bg-surface-2 w-3/4" />
-              <div className="h-3 bg-surface-2 w-1/2" />
+          </article>
+        ))}
+
+        {/* Thinking / loading state */}
+        {isAsking && (
+          <article className="max-w-3xl mx-auto">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full gradient-bg flex items-center justify-center flex-shrink-0 animate-pulse-ring">
+                <BotIcon />
+              </div>
+              <span className="text-xs text-text-muted font-medium">Datum is thinking...</span>
+            </div>
+            <div className="glass-card rounded-2xl rounded-tl-sm p-4">
+              <div className="flex items-center gap-1.5 mb-3">
+                <div className="w-1.5 h-1.5 rounded-full bg-accent typing-dot" />
+                <div className="w-1.5 h-1.5 rounded-full bg-accent typing-dot" />
+                <div className="w-1.5 h-1.5 rounded-full bg-accent typing-dot" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-3 rounded-full bg-surface-3 animate-pulse w-3/4" />
+                <div className="h-3 rounded-full bg-surface-3 animate-pulse w-1/2" />
+                <div className="h-3 rounded-full bg-surface-3 animate-pulse w-5/6" />
+              </div>
+              <p className="text-xs text-text-muted mt-3 font-mono">Retrieving passages &amp; synthesizing with Groq...</p>
             </div>
           </article>
         )}
@@ -195,12 +268,12 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
         <div ref={threadEndRef} />
       </div>
 
-      {/* Input Area: Solid matte surface-1, single-line text input on surface-2 with plain text "Ask" button */}
+      {/* Input area */}
       <div className="border-t border-border-theme bg-surface-1 p-4 flex-shrink-0">
         <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="flex items-center space-x-3">
+          <form onSubmit={handleSubmit} className="flex items-center gap-3">
             <label htmlFor="question-input" className="sr-only">
-              Ask a question about this AUTOSAR document
+              Ask a question about this document
             </label>
             <input
               id="question-input"
@@ -212,31 +285,32 @@ export const ConversationView: React.FC<ConversationViewProps> = ({
                 !document
                   ? 'Select a document to ask questions...'
                   : !isDocReady
-                  ? `Document is ${document.status} — questions enabled once ready.`
-                  : `Ask a question grounded in ${document.filename}...`
+                  ? `Document is ${document.status} — available once ready`
+                  : `Ask anything about ${document.filename}...`
               }
-              className="flex-1 h-10 px-3.5 bg-surface-2 border border-border-theme text-scale-15 text-text-primary placeholder-text-muted focus:border-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 h-11 px-4 rounded-xl bg-surface-2 border border-border-theme text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-border focus:ring-1 focus:ring-accent/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <button
               type="submit"
               disabled={isInputDisabled || !inputValue.trim()}
-              className="h-10 px-5 text-scale-15 font-medium bg-accent text-surface-0 hover:opacity-90 active:opacity-80 transition-opacity select-none disabled:opacity-50 disabled:cursor-not-allowed"
+              className="h-11 w-11 flex-shrink-0 rounded-xl flex items-center justify-center gradient-bg text-white hover:opacity-90 active:scale-95 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed glow-sm"
+              aria-label="Send question"
             >
-              {isAsking ? 'Thinking...' : 'Ask'}
+              <SendIcon />
             </button>
           </form>
 
-          <div className="mt-2 text-scale-13 text-text-muted flex items-center justify-between">
+          <div className="mt-2 flex items-center justify-between text-[11px] text-text-muted">
             {document && !isDocReady ? (
-              <span className="text-flag-amber font-mono text-[12px]">
+              <span className={`font-mono ${document.status === 'failed' ? 'text-red-400' : 'text-accent'}`}>
                 {document.status === 'failed'
-                  ? `Ingestion failed: ${document.errorMessage || 'Server processing error'}`
-                  : `Document status: ${document.status}. Ingestion must complete before queries.`}
+                  ? `Ingestion failed: ${document.errorMessage || 'processing error'}`
+                  : `Status: ${document.status} — indexing in progress`}
               </span>
             ) : (
-              <span>Answers provide direct section and page evidence from source HLD</span>
+              <span>All answers cite exact sections and page numbers from your document</span>
             )}
-            <span className="font-mono text-scale-13 hidden sm:inline">Press Enter to submit</span>
+            <span className="font-mono hidden sm:inline">↵ Enter to send</span>
           </div>
         </div>
       </div>
