@@ -335,33 +335,27 @@ export const WorkspacePage: React.FC = () => {
         {/* Pane 2: Center Pane (Conversation View or Structure View) */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
           {/* Tab Switcher Bar */}
-          <div className="h-12 border-b border-border-theme px-4 flex items-center gap-1 bg-surface-1/50 flex-shrink-0 select-none z-10">
+          <div className="h-10 border-b border-border-theme px-4 flex items-center gap-0 bg-surface-1 flex-shrink-0 select-none z-10">
             <button
               type="button"
               onClick={() => setActiveTab('conversation')}
-              className={`h-8 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+              className={`h-10 px-4 text-sm transition-colors duration-150 border-b-2 -mb-px ${
                 activeTab === 'conversation'
-                  ? 'gradient-bg text-white shadow-glow-sm'
-                  : 'text-text-muted hover:text-text-primary hover:bg-surface-2'
+                  ? 'border-accent text-text-primary font-medium'
+                  : 'border-transparent text-text-muted hover:text-text-secondary'
               }`}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
               Conversation
             </button>
             <button
               type="button"
               onClick={() => setActiveTab('structure')}
-              className={`h-8 px-4 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 ${
+              className={`h-10 px-4 text-sm transition-colors duration-150 border-b-2 -mb-px ${
                 activeTab === 'structure'
-                  ? 'gradient-bg text-white shadow-glow-sm'
-                  : 'text-text-muted hover:text-text-primary hover:bg-surface-2'
+                  ? 'border-accent text-text-primary font-medium'
+                  : 'border-transparent text-text-muted hover:text-text-secondary'
               }`}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-              </svg>
               Structure
             </button>
           </div>

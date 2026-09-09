@@ -7,55 +7,42 @@ interface StructureViewProps {
 }
 
 const TYPE_LABELS: Record<EntityType | 'all', string> = {
-  all: 'All',
-  component: 'Components',
-  port: 'Ports',
-  interface: 'Interfaces',
-  signal: 'Signals',
-  other: 'Other',
+  all: 'All', component: 'Components', port: 'Ports',
+  interface: 'Interfaces', signal: 'Signals', other: 'Other',
 };
 
 const TYPE_COLORS: Record<EntityType | 'all', string> = {
-  all: 'text-accent bg-accent-soft border-accent-border',
-  component: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20',
-  port: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
-  interface: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
-  signal: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-  other: 'text-text-muted bg-surface-3 border-border-theme',
+  all:       'text-text-primary bg-surface-2 border-border-strong',
+  component: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+  port:      'text-blue-400 bg-blue-500/10 border-blue-500/20',
+  interface: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  signal:    'text-violet-400 bg-violet-500/10 border-violet-500/20',
+  other:     'text-text-muted bg-surface-3 border-border-theme',
 };
 
-const ICON_FOR_TYPE: Record<EntityType | 'all', string> = {
-  all: '⊞',
-  component: '◈',
-  port: '⊳',
-  interface: '⋈',
-  signal: '↯',
-  other: '○',
-};
-
-const LayersIcon = () => (
-  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-    <polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/>
-  </svg>
-);
 const RefreshIcon = ({ spinning }: { spinning: boolean }) => (
-  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-    style={{ animation: spinning ? 'spin-slow 1s linear infinite' : undefined }}>
-    <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+  <svg
+    width="13" height="13" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    className={spinning ? 'spin' : undefined}
+  >
+    <polyline points="23 4 23 10 17 10"/>
+    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
   </svg>
 );
 const DownloadIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/>
+    <line x1="12" y1="15" x2="12" y2="3"/>
   </svg>
 );
 
 const SkeletonRow = () => (
   <tr className="border-b border-border-theme">
-    <td className="py-3.5 px-5"><div className="h-5 w-36 rounded-lg bg-surface-3 animate-pulse" /></td>
-    <td className="py-3.5 px-4"><div className="h-5 w-20 rounded-full bg-surface-3 animate-pulse" /></td>
-    <td className="py-3.5 px-4"><div className="h-5 w-64 rounded-lg bg-surface-3 animate-pulse" /></td>
-    <td className="py-3.5 px-5 text-right"><div className="h-5 w-24 rounded-lg bg-surface-3 animate-pulse ml-auto" /></td>
+    <td className="py-3 px-5"><div className="skeleton h-4 w-36" /></td>
+    <td className="py-3 px-4"><div className="skeleton h-4 w-20" /></td>
+    <td className="py-3 px-4"><div className="skeleton h-4 w-64" /></td>
+    <td className="py-3 px-5"><div className="skeleton h-4 w-24 ml-auto" /></td>
   </tr>
 );
 
@@ -72,119 +59,70 @@ export const StructureView: React.FC<StructureViewProps> = ({ document }) => {
   const isReady = document?.status === 'ready';
 
   useEffect(() => {
-    if (!docId || !isReady) {
-      setEntities([]);
-      setGeneratedAt(null);
-      setError(null);
-      return;
-    }
-
-    let isMounted = true;
-    setIsLoading(true);
-    setError(null);
-
+    if (!docId || !isReady) { setEntities([]); setGeneratedAt(null); setError(null); return; }
+    let mounted = true;
+    setIsLoading(true); setError(null);
     extractDocument(docId, false)
-      .then((res) => {
-        if (isMounted) {
-          setEntities(res.entities);
-          setGeneratedAt(res.generated_at);
-        }
-      })
-      .catch((err) => {
-        if (isMounted) setError(err.message || 'Failed to extract structured entities.');
-      })
-      .finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
-
-    return () => { isMounted = false; };
+      .then((res) => { if (mounted) { setEntities(res.entities); setGeneratedAt(res.generated_at); } })
+      .catch((err) => { if (mounted) setError(err.message || 'Extraction failed.'); })
+      .finally(() => { if (mounted) setIsLoading(false); });
+    return () => { mounted = false; };
   }, [docId, isReady]);
 
   const handleRefresh = async () => {
     if (!docId || !isReady || isLoading || isRefreshing) return;
-    setIsRefreshing(true);
-    setError(null);
-    try {
-      const res = await extractDocument(docId, true);
-      setEntities(res.entities);
-      setGeneratedAt(res.generated_at);
-    } catch (err: any) {
-      setError(err.message || 'Failed to re-extract structured entities.');
-    } finally {
-      setIsRefreshing(false);
-    }
+    setIsRefreshing(true); setError(null);
+    try { const r = await extractDocument(docId, true); setEntities(r.entities); setGeneratedAt(r.generated_at); }
+    catch (e: any) { setError(e.message || 'Re-extraction failed.'); }
+    finally { setIsRefreshing(false); }
   };
 
-  const filteredEntities = useMemo(() => {
-    return entities.filter((ent) => {
-      const matchesType = selectedType === 'all' || ent.entity_type === selectedType;
-      const q = searchQuery.trim().toLowerCase();
-      const matchesSearch =
-        !q ||
-        ent.name.toLowerCase().includes(q) ||
-        ent.description.toLowerCase().includes(q) ||
-        (ent.section_title && ent.section_title.toLowerCase().includes(q));
-      return matchesType && matchesSearch;
-    });
-  }, [entities, selectedType, searchQuery]);
+  const filtered = useMemo(() => entities.filter((e) => {
+    const matchType = selectedType === 'all' || e.entity_type === selectedType;
+    const q = searchQuery.trim().toLowerCase();
+    const matchSearch = !q || e.name.toLowerCase().includes(q) || e.description.toLowerCase().includes(q)
+      || (e.section_title && e.section_title.toLowerCase().includes(q));
+    return matchType && matchSearch;
+  }), [entities, selectedType, searchQuery]);
 
   const counts = useMemo(() => {
-    const c: Record<EntityType | 'all', number> = {
-      all: entities.length,
-      component: 0, port: 0, interface: 0, signal: 0, other: 0,
-    };
-    for (const ent of entities) {
-      if (ent.entity_type in c) c[ent.entity_type]++;
-      else c.other++;
-    }
+    const c: Record<EntityType | 'all', number> = { all: entities.length, component: 0, port: 0, interface: 0, signal: 0, other: 0 };
+    for (const e of entities) { if (e.entity_type in c) c[e.entity_type]++; else c.other++; }
     return c;
   }, [entities]);
 
-  if (!document) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-surface-0 p-8 text-center select-none">
-        <div className="max-w-sm">
-          <div className="w-16 h-16 rounded-2xl gradient-bg-subtle border border-accent-border flex items-center justify-center mx-auto mb-4 animate-float">
-            <LayersIcon />
-          </div>
-          <h3 className="text-base font-semibold text-text-primary mb-2">No Document Selected</h3>
-          <p className="text-sm text-text-muted leading-relaxed">
-            Select a specification from the left rail to extract architectural components, ports, interfaces, and signals.
-          </p>
-        </div>
+  if (!document) return (
+    <div className="flex-1 flex items-center justify-center p-8 text-center bg-surface-0">
+      <div className="max-w-xs">
+        <div className="text-3xl text-text-subtle mb-4 font-mono">—</div>
+        <h3 className="text-base font-semibold text-text-primary mb-2">No document selected</h3>
+        <p className="text-sm text-text-muted leading-relaxed">Select a specification to extract its architectural components, ports, interfaces, and signals.</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  if (!isReady) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-surface-0 p-8 text-center select-none">
-        <div className="max-w-sm">
-          <div className="w-16 h-16 rounded-2xl gradient-bg flex items-center justify-center mx-auto mb-4 animate-pulse-ring">
-            <LayersIcon />
-          </div>
-          <h3 className="text-base font-semibold text-text-primary mb-2">Ingestion In Progress</h3>
-          <p className="text-sm text-text-muted leading-relaxed mb-3">
-            Structure extraction requires full indexing to complete.
-          </p>
-          <span className="font-mono text-xs text-accent bg-accent-soft border border-accent-border px-3 py-1 rounded-full">
-            Status: {document.status}
-          </span>
+  if (!isReady) return (
+    <div className="flex-1 flex items-center justify-center p-8 text-center bg-surface-0">
+      <div className="max-w-xs">
+        <div className="flex justify-center mb-4">
+          <span className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full spin" />
         </div>
+        <h3 className="text-base font-semibold text-text-primary mb-2">Ingestion in progress</h3>
+        <p className="text-sm text-text-muted leading-relaxed">
+          Structure extraction requires full indexing. Status: <code className="font-mono text-accent">{document.status}</code>
+        </p>
       </div>
-    );
-  }
+    </div>
+  );
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-surface-0 overflow-hidden">
       {/* Toolbar */}
-      <div className="h-14 border-b border-border-theme px-5 flex items-center justify-between flex-shrink-0 bg-surface-1/50">
-        <div className="flex items-center gap-3 min-w-0">
-          <h2 className="text-sm font-semibold text-text-primary">Structure Extraction</h2>
+      <div className="h-12 border-b border-border-theme px-4 flex items-center justify-between flex-shrink-0 bg-surface-1">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-semibold text-text-primary">Structure</h2>
           {generatedAt && !isLoading && (
-            <span className="font-mono text-xs text-text-muted bg-surface-2 border border-border-theme px-2 py-0.5 rounded-full hidden sm:inline">
-              {entities.length} entities
-            </span>
+            <span className="font-mono text-xs text-text-muted">{entities.length} entities</span>
           )}
         </div>
 
@@ -193,64 +131,53 @@ export const StructureView: React.FC<StructureViewProps> = ({ document }) => {
             type="button"
             onClick={handleRefresh}
             disabled={isLoading || isRefreshing}
-            className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs text-text-muted hover:text-text-primary glass border border-border-theme hover:border-accent-border disabled:opacity-40 transition-all duration-200"
-            title="Re-run extraction"
+            className="h-8 px-3 flex items-center gap-1.5 text-xs text-text-muted border border-border-theme rounded bg-surface-2 hover:border-border-strong hover:text-text-primary disabled:opacity-40 transition-colors duration-150"
           >
             <RefreshIcon spinning={isRefreshing} />
-            {isRefreshing ? 'Analyzing...' : 'Refresh'}
+            {isRefreshing ? 'Analyzing…' : 'Refresh'}
           </button>
 
-          {entities.length > 0 && (
-            <>
-              <a
-                href={getExportUrl(document.id, 'csv')}
-                download={`${document.filename.replace(/\.pdf$/i, '')}_extractions.csv`}
-                className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-medium gradient-bg text-white hover:opacity-90 transition-all duration-200 glow-sm"
-              >
-                <DownloadIcon />
-                CSV
-              </a>
-              <a
-                href={getExportUrl(document.id, 'json')}
-                download={`${document.filename.replace(/\.pdf$/i, '')}_extractions.json`}
-                className="h-8 px-3 flex items-center gap-1.5 rounded-lg text-xs font-medium glass border border-border-theme hover:border-accent-border text-text-primary transition-all duration-200"
-              >
-                <DownloadIcon />
-                JSON
-              </a>
-            </>
-          )}
+          {entities.length > 0 && (<>
+            <a
+              href={getExportUrl(document.id, 'csv')}
+              download={`${document.filename.replace(/\.pdf$/i, '')}_entities.csv`}
+              className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium rounded bg-accent text-white hover:bg-accent-dim transition-colors duration-150"
+            >
+              <DownloadIcon /> CSV
+            </a>
+            <a
+              href={getExportUrl(document.id, 'json')}
+              download={`${document.filename.replace(/\.pdf$/i, '')}_entities.json`}
+              className="h-8 px-3 flex items-center gap-1.5 text-xs font-medium rounded border border-border-theme bg-surface-2 text-text-secondary hover:text-text-primary hover:border-border-strong transition-colors duration-150"
+            >
+              <DownloadIcon /> JSON
+            </a>
+          </>)}
         </div>
       </div>
 
-      {/* Error banner */}
+      {/* Error */}
       {error && (
-        <div className="border-b border-flag-amber/30 bg-amber-soft px-5 py-2.5 flex items-center justify-between text-sm">
+        <div className="border-b border-warn-soft/40 bg-warn-soft px-4 py-2 flex items-center justify-between text-xs">
           <span className="text-flag-amber">{error}</span>
-          <button onClick={handleRefresh} className="text-xs underline text-flag-amber/80 hover:text-flag-amber">
-            Retry
-          </button>
+          <button onClick={handleRefresh} className="underline text-flag-amber/80 hover:text-flag-amber">Retry</button>
         </div>
       )}
 
       {isLoading ? (
-        /* Loading skeleton */
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-5 py-4 border-b border-border-theme flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass border border-accent-border text-xs text-accent font-medium">
-              <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-              Analyzing full document...
-            </div>
-            <p className="text-sm text-text-muted">Sweeping all chunks for components, ports, interfaces, signals...</p>
+        <div className="flex-1 flex flex-col">
+          <div className="px-4 py-3 border-b border-border-theme bg-surface-1 flex items-center gap-2 text-xs text-text-muted">
+            <span className="w-3 h-3 border border-accent border-t-transparent rounded-full spin" />
+            Sweeping all chunks for components, ports, interfaces, signals…
           </div>
           <div className="overflow-auto">
             <table className="w-full">
-              <thead className="bg-surface-2/50 border-b border-border-theme">
-                <tr className="text-xs text-text-muted font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-5 text-left">Name</th>
-                  <th className="py-3 px-4 text-left">Type</th>
-                  <th className="py-3 px-4 text-left">Description</th>
-                  <th className="py-3 px-5 text-right">Location</th>
+              <thead className="bg-surface-1 border-b border-border-theme">
+                <tr className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                  <th className="py-2.5 px-5 text-left">Name</th>
+                  <th className="py-2.5 px-4 text-left">Type</th>
+                  <th className="py-2.5 px-4 text-left">Description</th>
+                  <th className="py-2.5 px-5 text-right">Location</th>
                 </tr>
               </thead>
               <tbody>{Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} />)}</tbody>
@@ -258,60 +185,46 @@ export const StructureView: React.FC<StructureViewProps> = ({ document }) => {
           </div>
         </div>
       ) : entities.length === 0 ? (
-        /* Empty state */
-        <div className="flex-1 flex items-center justify-center p-8 text-center select-none">
-          <div className="max-w-sm">
-            <div className="text-4xl mb-3">🔍</div>
-            <h3 className="text-base font-semibold text-text-primary mb-2">No Entities Identified</h3>
-            <p className="text-sm text-text-muted leading-relaxed mb-4">
-              No explicitly designated components, ports, interfaces, or signals were found in this document.
-            </p>
-            <button
-              onClick={handleRefresh}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium gradient-bg text-white hover:opacity-90 transition-all glow-sm"
-            >
-              <RefreshIcon spinning={false} />
-              Re-run Extraction
+        <div className="flex-1 flex items-center justify-center p-8 text-center">
+          <div className="max-w-xs">
+            <div className="text-3xl text-text-subtle mb-4">—</div>
+            <h3 className="text-base font-semibold text-text-primary mb-2">No entities found</h3>
+            <p className="text-sm text-text-muted leading-relaxed mb-4">No components, ports, interfaces, or signals were identified in this document.</p>
+            <button onClick={handleRefresh} className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded bg-accent text-white hover:bg-accent-dim transition-colors duration-150">
+              <RefreshIcon spinning={false} /> Re-run extraction
             </button>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Filter bar */}
-          <div className="border-b border-border-theme px-5 py-2.5 bg-surface-1/30 flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
-            <div className="flex items-center gap-1.5 overflow-x-auto">
+          <div className="border-b border-border-theme px-4 py-2 bg-surface-1 flex flex-wrap items-center justify-between gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1 overflow-x-auto">
               {(['all', 'component', 'port', 'interface', 'signal', 'other'] as const).map((type) => (
                 <button
                   key={type}
                   onClick={() => setSelectedType(type)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all duration-200 whitespace-nowrap ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-sm text-xs font-medium border transition-colors duration-150 whitespace-nowrap ${
                     selectedType === type
-                      ? TYPE_COLORS[type] + ' shadow-glow-sm'
-                      : 'text-text-muted border-transparent hover:border-border-theme hover:bg-surface-2'
+                      ? TYPE_COLORS[type]
+                      : 'text-text-muted border-transparent hover:bg-surface-2 hover:text-text-secondary'
                   }`}
                 >
-                  <span className="text-sm">{ICON_FOR_TYPE[type]}</span>
                   {TYPE_LABELS[type]}
-                  <span className="font-mono text-[10px] opacity-70">({counts[type]})</span>
+                  <span className="font-mono opacity-60">({counts[type]})</span>
                 </button>
               ))}
             </div>
-
             <div className="relative">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filter by name..."
-                className="h-8 pl-3 pr-8 rounded-lg bg-surface-2 border border-border-theme text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-border w-48 transition-all duration-200"
+                placeholder="Filter by name…"
+                className="h-7 pl-3 pr-7 text-xs rounded bg-surface-2 border border-border-theme text-text-primary placeholder:text-text-subtle focus:outline-none focus:border-border-strong w-44 transition-colors duration-150"
               />
               {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary text-xs"
-                >
-                  ✕
-                </button>
+                <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-subtle hover:text-text-secondary text-xs">✕</button>
               )}
             </div>
           </div>
@@ -319,60 +232,43 @@ export const StructureView: React.FC<StructureViewProps> = ({ document }) => {
           {/* Table */}
           <div className="flex-1 overflow-auto custom-scrollbar">
             <table className="w-full text-left border-collapse">
-              <thead className="sticky top-0 bg-surface-2/90 border-b border-border-theme z-10 select-none backdrop-blur-sm">
-                <tr className="text-xs text-text-muted font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-5">Name</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Description</th>
-                  <th className="py-3 px-5 text-right">Location</th>
+              <thead className="sticky top-0 bg-surface-1 border-b border-border-theme z-10">
+                <tr className="text-xs font-semibold text-text-muted uppercase tracking-wider">
+                  <th className="py-2.5 px-5">Name</th>
+                  <th className="py-2.5 px-4">Type</th>
+                  <th className="py-2.5 px-4">Description</th>
+                  <th className="py-2.5 px-5 text-right">Location</th>
                 </tr>
               </thead>
-              <tbody>
-                {filteredEntities.map((ent, idx) => {
-                  const pageStr = ent.page_start === ent.page_end
-                    ? `p. ${ent.page_start}`
-                    : `pp. ${ent.page_start}–${ent.page_end}`;
+              <tbody className="divide-y divide-border-theme">
+                {filtered.map((ent, idx) => {
+                  const pageStr = ent.page_start === ent.page_end ? `p. ${ent.page_start}` : `pp. ${ent.page_start}–${ent.page_end}`;
                   const secStr = ent.section_title || 'General';
                   const typeKey = (ent.entity_type in TYPE_COLORS) ? ent.entity_type : 'other';
-
                   return (
-                    <tr
-                      key={`${ent.entity_type}-${ent.name}-${idx}`}
-                      className="border-b border-border-theme hover:bg-surface-1/50 transition-colors duration-150 group"
-                    >
-                      <td className="py-3.5 px-5 align-top">
-                        <code className="font-mono text-xs font-semibold text-accent bg-accent-soft border border-accent-border px-2 py-1 rounded-md break-all">
+                    <tr key={`${ent.entity_type}-${ent.name}-${idx}`} className="hover:bg-surface-1 transition-colors duration-100">
+                      <td className="py-3 px-5 align-top">
+                        <code className="font-mono text-xs font-medium text-accent bg-accent-soft border border-accent-border px-2 py-0.5 rounded-sm break-all">
                           {ent.name}
                         </code>
                       </td>
-
-                      <td className="py-3.5 px-4 align-top">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-full border ${TYPE_COLORS[typeKey as EntityType | 'all']}`}>
-                          <span className="text-xs">{ICON_FOR_TYPE[typeKey as EntityType | 'all']}</span>
+                      <td className="py-3 px-4 align-top">
+                        <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-sm border ${TYPE_COLORS[typeKey as EntityType | 'all']}`}>
                           {ent.entity_type}
                         </span>
                       </td>
-
-                      <td className="py-3.5 px-4 align-top text-sm text-text-secondary leading-relaxed max-w-sm">
-                        {ent.description}
-                      </td>
-
-                      <td className="py-3.5 px-5 align-top text-right">
-                        <div className="text-xs text-text-muted font-mono truncate max-w-[160px] ml-auto" title={secStr}>
-                          {secStr}
-                        </div>
-                        <div className="text-[11px] font-mono text-text-subtle mt-0.5">{pageStr}</div>
+                      <td className="py-3 px-4 align-top text-sm text-text-secondary leading-relaxed max-w-sm">{ent.description}</td>
+                      <td className="py-3 px-5 align-top text-right font-mono">
+                        <div className="text-xs text-text-muted truncate max-w-[160px] ml-auto" title={secStr}>{secStr}</div>
+                        <div className="text-xs text-text-subtle mt-0.5">{pageStr}</div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-
-            {filteredEntities.length === 0 && (
-              <div className="p-8 text-center text-sm text-text-muted">
-                No entities match the current filter and search criteria.
-              </div>
+            {filtered.length === 0 && (
+              <div className="p-8 text-center text-sm text-text-muted">No entities match the current filter.</div>
             )}
           </div>
         </div>
