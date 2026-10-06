@@ -29,6 +29,7 @@ CORS_ORIGINS: List[str] = [origin.strip() for origin in cors_env.split(",") if o
 
 # Qdrant & Embeddings Configurations
 QDRANT_URL = os.getenv("QDRANT_URL", "").strip()
+QDRANT_LOCAL_PATH = os.getenv("QDRANT_LOCAL_PATH", str(BASE_DIR / "qdrant_local")).strip()
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "datum_chunks").strip()
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5").strip()

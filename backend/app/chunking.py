@@ -105,10 +105,12 @@ def build_chunks_from_blocks(blocks: List[ParsedBlock], min_body_words: int = 15
                 i += 1
                 continue
             else:
-                logger.warning(
-                    f"Discarding trailing near-empty section '{curr_sec.heading_title}' on page {curr_sec.blocks[0].page_number} "
-                    f"with {body_words} body words (< {min_body_words})."
-                )
+                if guarded_sections:
+                    # Merge backward into the previous guarded section rather than discarding
+                    guarded_sections[-1].blocks.extend(curr_sec.blocks)
+                else:
+                    # If this is the only section in the document, keep it so content is not lost
+                    guarded_sections.append(curr_sec)
                 i += 1
                 continue
 
@@ -192,6 +194,28 @@ def build_chunks_from_blocks(blocks: List[ParsedBlock], min_body_words: int = 15
             )
             continue
         clean_chunks.append(c)
+
+    # If all chunks were filtered out by the min_body_words threshold, keep final_chunks as fallback
+    if not clean_chunks and final_chunks:
+        clean_chunks = final_chunks
+
+    # If still empty but blocks exist, aggregate all block text into a single fallback chunk
+    if not clean_chunks and blocks:
+        all_words = []
+        for b in blocks:
+            for w in b.text.split():
+                all_words.append((w, b.page_number))
+        if all_words:
+            clean_chunks = [
+                Chunk(
+                    chunk_index=0,
+                    section_title=blocks[0].heading_title,
+                    page_start=all_words[0][1],
+                    page_end=all_words[-1][1],
+                    text=" ".join(w[0] for w in all_words),
+                    word_count=len(all_words),
+                )
+            ]
 
     # Re-index chunks sequentially
     for idx, c in enumerate(clean_chunks):

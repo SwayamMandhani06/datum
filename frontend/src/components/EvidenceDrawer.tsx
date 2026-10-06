@@ -26,7 +26,7 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ isOpen, citation
     <>
       {/* Mobile backdrop */}
       <div
-        className={`lg:hidden fixed inset-0 bg-black/50 z-40 transition-opacity duration-200 ${
+        className={`lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-250 ${
           isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
@@ -38,28 +38,29 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ isOpen, citation
         aria-label="Source Evidence"
         aria-hidden={!isOpen}
         className={`
-          fixed inset-y-0 right-0 z-50 w-full sm:w-[340px]
-          lg:static lg:z-auto lg:w-[300px] lg:flex-shrink-0
-          bg-evidence-bg border-l border-evidence-border
-          flex flex-col h-full overflow-hidden
+          fixed inset-y-0 right-0 z-50 w-full sm:w-[350px]
+          lg:static lg:z-auto lg:w-[320px] lg:flex-shrink-0
+          bg-evidence-bg/95 backdrop-blur-xl border-l border-evidence-border
+          flex flex-col h-full overflow-hidden shadow-2xl
           transition-transform duration-250 ease-out
           ${isOpen ? 'translate-x-0' : 'translate-x-full lg:hidden'}
         `}
       >
         {/* Header */}
-        <div className="h-12 px-4 border-b border-evidence-border flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded-sm bg-accent flex items-center justify-center flex-shrink-0">
-              <span className="text-[7px] font-bold text-white leading-none">D</span>
+        <div className="h-13 px-5 border-b border-evidence-border flex items-center justify-between flex-shrink-0 bg-surface-1/40">
+          <div className="flex items-center gap-2.5">
+            <div className="w-5 h-5 rounded-md bg-accent flex items-center justify-center flex-shrink-0 shadow-sm">
+              <span className="text-[9px] font-bold text-white leading-none">D</span>
             </div>
-            <span className="text-sm font-semibold text-evidence-text">
-              {citation ? `Citation [${citation.id}]` : 'Source evidence'}
+            <span className="text-sm font-bold text-evidence-text tracking-tight">
+              {citation ? `Evidence Citation [${citation.id}]` : 'Source Evidence'}
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded text-evidence-muted hover:text-evidence-text hover:bg-surface-3/20 transition-colors duration-150"
+            className="w-7 h-7 btn-icon !rounded-lg text-evidence-muted hover:text-evidence-text"
+            title="Close Drawer"
           >
             <XIcon />
           </button>
@@ -67,23 +68,32 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ isOpen, citation
 
         {/* Body */}
         {citation ? (
-          <div className="flex-1 overflow-y-auto evidence-scrollbar p-4 space-y-5">
+          <div className="flex-1 overflow-y-auto evidence-scrollbar p-5 space-y-5 fade-in-up">
 
             {/* Document + location */}
             <div className="space-y-3">
               <div>
-                <div className="section-label text-evidence-muted mb-1">Document</div>
-                <code className="font-mono text-xs text-evidence-text break-all leading-relaxed">{citation.documentName}</code>
+                <div className="section-label text-evidence-muted mb-1.5">Document Origin</div>
+                <code
+                  className="font-mono text-xs text-evidence-text break-words [word-break:break-word] leading-relaxed glass-badge px-2.5 py-1 block"
+                  title={citation.documentName}
+                >
+                  {citation.documentName}
+                </code>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-3 border-t border-evidence-border">
-                <div>
-                  <div className="section-label text-evidence-muted mb-0.5">Section</div>
-                  <div className="font-mono text-xs font-medium text-evidence-text">{citation.section}</div>
+                <div className="glass-card p-3 min-w-0">
+                  <div className="section-label text-evidence-muted mb-1">Section</div>
+                  <div className="font-mono text-xs font-bold text-evidence-text truncate" title={citation.section}>
+                    {citation.section}
+                  </div>
                 </div>
-                <div>
-                  <div className="section-label text-evidence-muted mb-0.5">Page</div>
-                  <div className="font-mono text-xs font-medium text-evidence-text">{citation.page}</div>
+                <div className="glass-card p-3 min-w-0">
+                  <div className="section-label text-evidence-muted mb-1">Page Evidence</div>
+                  <div className="font-mono text-xs font-bold text-accent truncate" title={citation.page}>
+                    {citation.page}
+                  </div>
                 </div>
               </div>
             </div>
@@ -91,42 +101,55 @@ export const EvidenceDrawer: React.FC<EvidenceDrawerProps> = ({ isOpen, citation
             {/* AUTOSAR identifier */}
             {citation.technicalEntity && (
               <div className="pt-3 border-t border-evidence-border">
-                <div className="section-label text-evidence-muted mb-1">AUTOSAR identifier</div>
-                <code className="font-mono text-xs text-accent">{citation.technicalEntity}</code>
+                <div className="section-label text-evidence-muted mb-1.5">AUTOSAR Identifier</div>
+                <code
+                  className="font-mono text-xs text-accent glass-badge px-2.5 py-1 block font-bold break-words [word-break:break-word]"
+                  title={citation.technicalEntity}
+                >
+                  {citation.technicalEntity}
+                </code>
               </div>
             )}
 
             {/* Excerpt */}
             <div className="pt-3 border-t border-evidence-border">
-              <div className="section-label text-evidence-muted mb-2">Verified excerpt</div>
-              <blockquote className="text-sm text-evidence-text leading-relaxed bg-surface-0/20 p-3 rounded-sm border-l-2 border-accent/50">
+              <div className="section-label text-evidence-muted mb-2">Verbatim Source Excerpt</div>
+              <blockquote className="text-xs text-evidence-text leading-relaxed p-3.5 rounded-xl border-l-4 border-accent bg-surface-0/40 glass-card">
                 "{citation.excerpt}"
               </blockquote>
             </div>
 
             {/* Low confidence */}
             {citation.isLowConfidence && (
-              <div className="pt-3 border-t border-evidence-border">
-                <div className="text-xs font-semibold text-flag-amber mb-0.5">Low confidence</div>
-                <p className="text-xs text-flag-amber/80 leading-snug">
-                  {citation.confidenceNote || 'Verify this excerpt against the source document.'}
+              <div className="p-3.5 rounded-xl border border-warn/30 bg-warn-soft fade-in-up">
+                <div className="text-xs font-bold text-warn mb-1 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-warn" />
+                  <span>Low Confidence Verification Note</span>
+                </div>
+                <p className="text-xs text-warn/90 leading-snug">
+                  {citation.confidenceNote || 'Passages retrieved with low similarity score. Verify directly against primary PDF source.'}
                 </p>
               </div>
             )}
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-            <div className="text-2xl text-evidence-muted mb-3">[ ]</div>
-            <p className="text-sm font-medium text-evidence-text mb-1">No citation selected</p>
-            <p className="text-xs text-evidence-muted leading-relaxed">
-              Click any <code className="font-mono text-accent bg-accent-soft px-1 rounded-sm">[1]</code> marker in the conversation to inspect the source.
+            <div className="w-12 h-12 rounded-2xl glass-card flex items-center justify-center text-evidence-muted mb-3">
+              <span className="text-lg font-mono">[ ]</span>
+            </div>
+            <p className="text-sm font-bold text-evidence-text mb-1 tracking-tight">No Citation Selected</p>
+            <p className="text-xs text-evidence-muted leading-relaxed max-w-xs">
+              Click any <code className="citation-badge">[1]</code> marker in the conversation thread to inspect verbatim evidence.
             </p>
           </div>
         )}
 
         {/* Footer */}
-        <div className="flex-shrink-0 px-4 py-3 border-t border-evidence-border">
-          <div className="text-xs text-evidence-muted font-mono">SHA-256 verified · immutable source</div>
+        <div className="flex-shrink-0 px-5 py-3 border-t border-evidence-border bg-surface-1/40">
+          <div className="text-[11px] text-evidence-muted font-mono flex items-center justify-between">
+            <span>SHA-256 Verified</span>
+            <span className="text-emerald-400 font-bold">Immutable Spec</span>
+          </div>
         </div>
       </aside>
     </>

@@ -112,3 +112,61 @@ class ExtractionResult(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class InconsistencyIssue(BaseModel):
+    severity: Literal["warning", "notice", "critical"]
+    category: str
+    entity_name: str
+    description: str
+    recommendation: Optional[str] = None
+
+
+class ComparisonResult(BaseModel):
+    doc_a_id: str
+    doc_a_name: str
+    doc_b_id: str
+    doc_b_name: str
+    total_entities_a: int
+    total_entities_b: int
+    shared_entities: list[ExtractedEntity]
+    unique_to_a: list[ExtractedEntity]
+    unique_to_b: list[ExtractedEntity]
+    inconsistencies: list[InconsistencyIssue]
+    compatibility_score: float
+    summary: str
+    generated_at: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DependencyNode(BaseModel):
+    component: str
+    ports: list[str]
+    interfaces: list[str]
+    signals: list[str]
+    flow_type: Literal["provided", "required", "bidirectional", "internal"]
+    page_references: list[int]
+    section: Optional[str] = None
+
+
+class DependencyMapResult(BaseModel):
+    document_id: str
+    filename: str
+    nodes: list[DependencyNode]
+    total_components: int
+    total_interfaces: int
+    total_connections: int
+    generated_at: str
+
+
+class CompletenessAuditResult(BaseModel):
+    document_id: str
+    filename: str
+    health_score: int
+    total_components: int
+    total_ports: int
+    total_interfaces: int
+    total_signals: int
+    issues: list[InconsistencyIssue]
+    generated_at: str
+
+

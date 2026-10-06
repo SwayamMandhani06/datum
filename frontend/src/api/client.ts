@@ -1,4 +1,10 @@
-import type { DocumentItem, ExtractionResult } from '../types';
+import type {
+  DocumentItem,
+  ExtractionResult,
+  ComparisonResult,
+  DependencyMapResult,
+  CompletenessAuditResult,
+} from '../types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '');
 
@@ -255,3 +261,75 @@ export async function extractDocument(
 export function getExportUrl(documentId: string, format: 'csv' | 'json'): string {
   return `${API_BASE_URL}/documents/${encodeURIComponent(documentId)}/extract/export?format=${format}`;
 }
+
+export async function compareDocuments(
+  documentId: string,
+  otherDocumentId: string
+): Promise<ComparisonResult> {
+  const { signal, cleanup } = createTimeoutSignal(120000);
+  try {
+    const url = `${API_BASE_URL}/documents/${encodeURIComponent(documentId)}/compare/${encodeURIComponent(otherDocumentId)}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal,
+    });
+    return await handleResponse<ComparisonResult>(res);
+  } catch (err: any) {
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+      throw new ApiError('Document comparison timed out.', 408);
+    }
+    throw err;
+  } finally {
+    cleanup();
+  }
+}
+
+export function getComparisonExportUrl(
+  documentId: string,
+  otherDocumentId: string,
+  format: 'markdown' | 'json' | 'csv'
+): string {
+  return `${API_BASE_URL}/documents/${encodeURIComponent(documentId)}/compare/${encodeURIComponent(otherDocumentId)}/export?format=${format}`;
+}
+
+export async function getDocumentDependencies(documentId: string): Promise<DependencyMapResult> {
+  const { signal, cleanup } = createTimeoutSignal(60000);
+  try {
+    const url = `${API_BASE_URL}/documents/${encodeURIComponent(documentId)}/dependencies`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal,
+    });
+    return await handleResponse<DependencyMapResult>(res);
+  } catch (err: any) {
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+      throw new ApiError('Fetching document dependency mapping timed out.', 408);
+    }
+    throw err;
+  } finally {
+    cleanup();
+  }
+}
+
+export async function getDocumentAudit(documentId: string): Promise<CompletenessAuditResult> {
+  const { signal, cleanup } = createTimeoutSignal(60000);
+  try {
+    const url = `${API_BASE_URL}/documents/${encodeURIComponent(documentId)}/audit`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal,
+    });
+    return await handleResponse<CompletenessAuditResult>(res);
+  } catch (err: any) {
+    if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+      throw new ApiError('Fetching document completeness audit timed out.', 408);
+    }
+    throw err;
+  } finally {
+    cleanup();
+  }
+}
+

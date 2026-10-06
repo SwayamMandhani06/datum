@@ -21,6 +21,11 @@ from app.models import (
     CitationItem,
     ExtractedEntity,
     ExtractionResult,
+    ComparisonResult,
+    DependencyMapResult,
+    DependencyNode,
+    CompletenessAuditResult,
+    InconsistencyIssue,
 )
 from app.parsing import parse_pdf
 from app.chunking import build_chunks_from_blocks
@@ -624,5 +629,321 @@ async def export_document_extraction(
             media_type="text/csv",
             headers={"Content-Disposition": f'attachment; filename="{base_name}_extractions.csv"'},
         )
+
+
+@router.get("/{document_id}/compare/{other_document_id}", response_model=ComparisonResult)
+async def compare_documents(document_id: str, other_document_id: str):
+    """
+    Compare architectural entities between two AUTOSAR documents or revisions.
+    Identifies shared elements, unique components, interface mismatches, and inconsistencies.
+    """
+    if document_id == other_document_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot compare a document with itself. Please select two distinct documents.",
+        )
+
+    res_a, filename_a = await _get_or_create_extraction(document_id, force_refresh=False)
+    res_b, filename_b = await _get_or_create_extraction(other_document_id, force_refresh=False)
+
+    entities_a = res_a.entities
+    entities_b = res_b.entities
+
+    dict_a = {e.name.lower().strip(): e for e in entities_a}
+    dict_b = {e.name.lower().strip(): e for e in entities_b}
+
+    shared_names = set(dict_a.keys()) & set(dict_b.keys())
+    unique_a_names = set(dict_a.keys()) - set(dict_b.keys())
+    unique_b_names = set(dict_b.keys()) - set(dict_a.keys())
+
+    shared_entities = [dict_a[k] for k in shared_names]
+    unique_to_a = [dict_a[k] for k in unique_a_names]
+    unique_to_b = [dict_b[k] for k in unique_b_names]
+
+    inconsistencies: list[InconsistencyIssue] = []
+
+    # 1. Type conflicts and description divergence on shared names
+    for name in shared_names:
+        ea = dict_a[name]
+        eb = dict_b[name]
+        if ea.entity_type != eb.entity_type:
+            inconsistencies.append(
+                InconsistencyIssue(
+                    severity="warning",
+                    category="Type Conflict",
+                    entity_name=ea.name,
+                    description=f"Classified as '{ea.entity_type}' in {filename_a} but as '{eb.entity_type}' in {filename_b}.",
+                    recommendation="Reconcile architectural definition to ensure uniform classification across specification layers.",
+                )
+            )
+        elif abs(len(ea.description) - len(eb.description)) > 100:
+            inconsistencies.append(
+                InconsistencyIssue(
+                    severity="notice",
+                    category="Specification Scope Divergence",
+                    entity_name=ea.name,
+                    description=f"Significant divergence in architectural description depth between {filename_a} (p.{ea.page_start}) and {filename_b} (p.{eb.page_start}).",
+                    recommendation="Align interface documentation between high-level description and module template.",
+                )
+            )
+
+    # 2. Cross-document interface dependencies
+    ports_a = [e for e in entities_a if e.entity_type == "port"]
+    interfaces_b = {e.name.lower().strip() for e in entities_b if e.entity_type == "interface"}
+    for p in ports_a:
+        if "interface" in p.description.lower() and interfaces_b:
+            if not any(iface in p.description.lower() for iface in interfaces_b):
+                inconsistencies.append(
+                    InconsistencyIssue(
+                        severity="notice",
+                        category="Cross-Spec Interface Dependency",
+                        entity_name=p.name,
+                        description=f"Port in '{filename_a}' references interface semantics not defined in '{filename_b}'.",
+                        recommendation="Verify whether interface definition resides in another AUTOSAR package.",
+                    )
+                )
+
+    compatibility_score = round(
+        (len(shared_names) * 2 / max(len(entities_a) + len(entities_b), 1)) * 100, 1
+    )
+
+    summary = (
+        f"Compared '{filename_a}' ({len(entities_a)} entities) against '{filename_b}' ({len(entities_b)} entities). "
+        f"Identified {len(shared_entities)} shared architectural elements, {len(inconsistencies)} potential inconsistencies, "
+        f"and a {compatibility_score}% cross-specification overlap."
+    )
+
+    return ComparisonResult(
+        doc_a_id=document_id,
+        doc_a_name=filename_a,
+        doc_b_id=other_document_id,
+        doc_b_name=filename_b,
+        total_entities_a=len(entities_a),
+        total_entities_b=len(entities_b),
+        shared_entities=shared_entities,
+        unique_to_a=unique_to_a,
+        unique_to_b=unique_to_b,
+        inconsistencies=inconsistencies,
+        compatibility_score=compatibility_score,
+        summary=summary,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@router.get("/{document_id}/compare/{other_document_id}/export")
+async def export_document_comparison(
+    document_id: str,
+    other_document_id: str,
+    format: str = Query("json", pattern="^(markdown|json|csv)$", description="Export format ('markdown', 'json', or 'csv')"),
+):
+    """
+    Export the document comparison and inconsistency report as Markdown, JSON, or CSV.
+    """
+    comp = await compare_documents(document_id, other_document_id)
+    base_name = f"{sanitize_filename(Path(comp.doc_a_name).stem)}_vs_{sanitize_filename(Path(comp.doc_b_name).stem)}"
+
+    if format == "json":
+        return Response(
+            content=json.dumps(comp.model_dump(), indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}_comparison.json"'},
+        )
+    elif format == "markdown":
+        md = [
+            "# AUTOSAR Specification Comparison & Inconsistency Report",
+            f"- **Document A**: {comp.doc_a_name} ({comp.total_entities_a} entities)",
+            f"- **Document B**: {comp.doc_b_name} ({comp.total_entities_b} entities)",
+            f"- **Cross-Specification Compatibility Score**: {comp.compatibility_score}%",
+            f"- **Generated At**: {comp.generated_at}",
+            "",
+            "## Executive Summary",
+            comp.summary,
+            "",
+            f"## Identified Architectural Inconsistencies & Warnings ({len(comp.inconsistencies)})",
+        ]
+        for idx, inc in enumerate(comp.inconsistencies, 1):
+            md.append(f"### {idx}. [{inc.severity.upper()}] {inc.category}: {inc.entity_name}")
+            md.append(f"- **Description**: {inc.description}")
+            if inc.recommendation:
+                md.append(f"- **Recommendation**: {inc.recommendation}")
+            md.append("")
+
+        md.append(f"## Shared Architectural Entities ({len(comp.shared_entities)})")
+        for ent in comp.shared_entities:
+            md.append(f"- **{ent.name}** (`{ent.entity_type}`): {ent.description} (p.{ent.page_start})")
+        md.append("")
+
+        return Response(
+            content="\n".join(md),
+            media_type="text/markdown",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}_inconsistency_report.md"'},
+        )
+    else:
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Category", "Severity", "Entity Name", "Description", "Recommendation"])
+        for inc in comp.inconsistencies:
+            writer.writerow([inc.category, inc.severity, inc.entity_name, inc.description, inc.recommendation or ""])
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{base_name}_inconsistencies.csv"'},
+        )
+
+
+@router.get("/{document_id}/dependencies", response_model=DependencyMapResult)
+async def get_document_dependencies(document_id: str):
+    """
+    Generate interface and dependency mappings linking components to ports, interfaces, and signals.
+    """
+    res, filename = await _get_or_create_extraction(document_id, force_refresh=False)
+    entities = res.entities
+
+    components = [e for e in entities if e.entity_type == "component"]
+    ports = [e for e in entities if e.entity_type == "port"]
+    interfaces = [e for e in entities if e.entity_type == "interface"]
+    signals = [e for e in entities if e.entity_type == "signal"]
+
+    # Fallback if no components identified, treat key entities as nodes
+    target_nodes = components if components else entities[:6]
+
+    nodes: list[DependencyNode] = []
+    total_connections = 0
+
+    for comp in target_nodes:
+        comp_name_lower = comp.name.lower()
+        # Find related ports
+        related_ports = [
+            p.name for p in ports
+            if comp_name_lower in p.name.lower() or comp_name_lower in p.description.lower() or (comp.section_title and p.section_title == comp.section_title)
+        ]
+        if not related_ports and ports:
+            related_ports = [p.name for p in ports if abs(p.page_start - comp.page_start) <= 6][:3]
+
+        # Find related interfaces
+        related_ifaces = [
+            i.name for i in interfaces
+            if comp_name_lower in i.name.lower() or any(p.lower() in i.description.lower() for p in related_ports) or (comp.section_title and i.section_title == comp.section_title)
+        ]
+        if not related_ifaces and interfaces:
+            related_ifaces = [i.name for i in interfaces if abs(i.page_start - comp.page_start) <= 6][:2]
+
+        # Find related signals
+        related_signals = [
+            s.name for s in signals
+            if any(iface.lower() in s.description.lower() for iface in related_ifaces) or (comp.section_title and s.section_title == comp.section_title)
+        ]
+        if not related_signals and signals:
+            related_signals = [s.name for s in signals if abs(s.page_start - comp.page_start) <= 6][:3]
+
+        flow_type = "provided"
+        desc_lower = comp.description.lower()
+        if "client" in desc_lower or "require" in desc_lower or "rx" in desc_lower:
+            flow_type = "required"
+        elif "bidirectional" in desc_lower or "gateway" in desc_lower:
+            flow_type = "bidirectional"
+        elif "internal" in desc_lower:
+            flow_type = "internal"
+
+        pages = sorted(list(set([comp.page_start, comp.page_end])))
+        total_connections += len(related_ports) + len(related_ifaces)
+
+        nodes.append(
+            DependencyNode(
+                component=comp.name,
+                ports=related_ports,
+                interfaces=related_ifaces,
+                signals=related_signals,
+                flow_type=flow_type,
+                page_references=pages,
+                section=comp.section_title,
+            )
+        )
+
+    return DependencyMapResult(
+        document_id=document_id,
+        filename=filename,
+        nodes=nodes,
+        total_components=len(components),
+        total_interfaces=len(interfaces),
+        total_connections=total_connections,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+
+@router.get("/{document_id}/audit", response_model=CompletenessAuditResult)
+async def get_document_audit(document_id: str):
+    """
+    Run architectural completeness and consistency audit on an AUTOSAR document.
+    Calculates health score and checks for missing definitions, dangling ports, or orphan signals.
+    """
+    res, filename = await _get_or_create_extraction(document_id, force_refresh=False)
+    entities = res.entities
+
+    components = [e for e in entities if e.entity_type == "component"]
+    ports = [e for e in entities if e.entity_type == "port"]
+    interfaces = [e for e in entities if e.entity_type == "interface"]
+    signals = [e for e in entities if e.entity_type == "signal"]
+
+    issues: list[InconsistencyIssue] = []
+
+    # 1. Components with minimal or missing description
+    for c in components:
+        if len(c.description.strip()) < 25:
+            issues.append(
+                InconsistencyIssue(
+                    severity="warning",
+                    category="Incomplete Architecture Description",
+                    entity_name=c.name,
+                    description=f"Component '{c.name}' has minimal behavioral specification in section '{c.section_title or 'General'}'.",
+                    recommendation="Add detailed behavioral description and execution requirements.",
+                )
+            )
+
+    # 2. Ports declared without explicit interfaces
+    if ports and not interfaces:
+        issues.append(
+            InconsistencyIssue(
+                severity="critical",
+                category="Missing Interface Specification",
+                entity_name="Port Architecture",
+                description="Ports are declared in the document, but no corresponding formal interface templates were found.",
+                recommendation="Ensure Sender-Receiver or Client-Server interface definitions are referenced.",
+            )
+        )
+
+    # 3. Signals without enclosing section
+    for s in signals:
+        if not s.section_title:
+            issues.append(
+                InconsistencyIssue(
+                    severity="notice",
+                    category="Orphan Signal Reference",
+                    entity_name=s.name,
+                    description=f"Signal '{s.name}' detected on page {s.page_start} without an enclosing section heading.",
+                    recommendation="Link signal to its corresponding data element and port interface.",
+                )
+            )
+
+    # Calculate overall health score
+    deductions = (
+        len([i for i in issues if i.severity == "critical"]) * 20
+        + len([i for i in issues if i.severity == "warning"]) * 8
+        + len([i for i in issues if i.severity == "notice"]) * 3
+    )
+    health_score = max(55, min(100, 100 - deductions)) if entities else 70
+
+    return CompletenessAuditResult(
+        document_id=document_id,
+        filename=filename,
+        health_score=health_score,
+        total_components=len(components),
+        total_ports=len(ports),
+        total_interfaces=len(interfaces),
+        total_signals=len(signals),
+        issues=issues,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
 
 

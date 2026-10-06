@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/hallucinations-0-10b981?style=flat-square" alt="Zero Hallucinations" />
   <img src="https://img.shields.io/badge/backend-FastAPI-0ea5e9?style=flat-square" alt="FastAPI" />
   <img src="https://img.shields.io/badge/frontend-React%20%2B%20Vite-8b5cf6?style=flat-square" alt="React + Vite" />
-  <img src="https://img.shields.io/badge/LLM-Groq%20%2F%20Llama--3-f59e0b?style=flat-square" alt="Groq LLM" />
+  <img src="https://img.shields.io/badge/LLM-Groq%20%2F%20Qwen-f59e0b?style=flat-square" alt="Groq LLM" />
   <img src="https://img.shields.io/badge/vectors-Qdrant-6366f1?style=flat-square" alt="Qdrant" />
 </p>
 
@@ -28,7 +28,7 @@
 | **Structural Extraction** | Auto-classify every component, port, interface, and signal with CSV/JSON export |
 | **Conversation History** | All Q&A exchanges are persisted in SQLite and restored on reload |
 | **Health Monitoring** | `/health` endpoint verifies Qdrant and Groq connectivity for production uptime checks |
-| **Automated Eval Harness** | `eval/runner.py` scores answer groundedness against a curated AUTOSAR question set |
+| **Automated Eval Harness** | `scripts/run_eval.py` scores answer groundedness against a curated AUTOSAR question set |
 
 ---
 
@@ -41,13 +41,17 @@ datum/
 │   │   ├── main.py           # FastAPI app, CORS, startup
 │   │   ├── database.py       # SQLite + settings
 │   │   ├── models.py         # Pydantic schemas
-│   │   ├── ingestion.py      # PDF parsing, section-aware chunking
-│   │   ├── embeddings.py     # HuggingFace sentence-transformers
-│   │   ├── vector_store.py   # Qdrant vector DB interface
-│   │   ├── qa.py             # Citation-grounded Q&A (Groq)
-│   │   └── extraction.py     # Full-doc structural extraction
+│   │   ├── parsing.py        # PyMuPDF span-level layout & table parser
+│   │   ├── chunking.py       # Section-aware chunking & header exclusion
+│   │   ├── embeddings.py     # SentenceTransformers BGE-Small-en-v1.5
+│   │   ├── vectorstore.py    # Qdrant vector DB interface
+│   │   ├── generation.py     # Citation-grounded Q&A & refusal (Groq)
+│   │   ├── extraction.py     # Full-doc structural extraction
+│   │   └── routes/
+│   │       └── documents.py  # REST endpoints (/upload, /ask, /extract, /compare, /audit)
 │   ├── tests/                # Pytest suite (17 tests)
-│   ├── eval/                 # Groundedness evaluation harness
+│   ├── eval/                 # Groundedness evaluation dataset & report
+│   ├── scripts/              # run_eval.py, smoke_test_deployed.py
 │   └── requirements.txt
 │
 ├── frontend/                 # React + Vite + Tailwind
@@ -59,19 +63,18 @@ datum/
 │   │   └── types.ts          # Shared TypeScript types
 │   └── tailwind.config.js
 │
-├── AUDIT_REPORT.md           # Full system audit findings
 ├── LICENSE                   # MIT License
 └── README.md
 ```
 
 ```
-User  →  React Frontend  →  FastAPI Backend  →  HuggingFace Embeddings
+User  →  React Frontend  →  FastAPI Backend  →  SentenceTransformers Embeddings
                                           ↓
                                     Qdrant Vector Store
                                           ↓
                                    Top-k Chunk Retrieval
                                           ↓
-                                  Groq (Llama-3.3-70B)
+                                   Groq (qwen/qwen3.8-27b)
                                           ↓
                               Citation-Grounded Answer
 ```
@@ -176,7 +179,7 @@ Expected output: **17 tests pass** covering:
 
 ```bash
 cd backend
-python eval/runner.py
+python scripts/run_eval.py
 ```
 
 Scores each question in `eval/questions.json` for:
@@ -207,9 +210,10 @@ Interactive docs at **http://localhost:8000/docs** (Swagger UI).
 
 | Setting | Default | Description |
 |---|---|---|
-| Model | `llama-3.3-70b-versatile` | Groq model used for Q&A and extraction |
-| Top-k retrieval | 6 chunks | Number of relevant chunks retrieved per question |
-| Max batches | 8 | Maximum extraction batches per document |
+| Primary Model | `qwen/qwen3.8-27b` | Groq primary model used for Q&A and extraction |
+| Fallback Model | `openai/gpt-oss-120b` | Groq automatic failover model |
+| Top-k retrieval | 5 chunks | Number of relevant chunks retrieved per question |
+| Max batches | 6 | Maximum extraction batches per document |
 | Temperature | 0.1 | Near-deterministic for factual precision |
 
 ---
@@ -223,7 +227,7 @@ Streaming would prevent the backend from verifying that all citations are ground
 This is a local-first tool. SQLite is zero-infrastructure and sufficient for single-user workloads. Swap to PostgreSQL via `DATABASE_URL` when deploying multi-user.
 
 ### Why sentence-transformers over OpenAI embeddings?
-Fully offline, no API cost, privacy-preserving for proprietary AUTOSAR documents. The `all-MiniLM-L6-v2` model is fast and effective for technical specification text.
+Fully offline, no API cost, privacy-preserving for proprietary AUTOSAR documents. The `BAAI/bge-small-en-v1.5` model (384 dimensions) provides high-accuracy technical retrieval via the `sentence-transformers` library.
 
 ---
 
@@ -276,17 +280,8 @@ Set `VITE_API_URL` to your backend's public URL in the host's environment settin
 
 ```bash
 cd backend
-python eval/smoke_test.py --url https://your-backend.onrender.com
+python scripts/smoke_test_deployed.py --url https://your-backend.onrender.com
 ```
-
----
-
-## 📋 Audit Report
-
-A complete system audit is documented in [`AUDIT_REPORT.md`](./AUDIT_REPORT.md), covering:
-- Pipeline correctness (all 17 tests)
-- Auto-fixed bugs (Groq model deprecated default, Qdrant timeouts)
-- Flagged design decisions (ephemeral storage, rate limiting)
 
 ---
 

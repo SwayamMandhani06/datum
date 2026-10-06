@@ -77,13 +77,14 @@ def generate_answer(question: str, sources: List[Dict[str, Any]]) -> str:
     user_prompt = f"Sources:\n{sources_text}\n\nQuestion: {question.strip()}\nAnswer:"
 
     retries = 4
+    current_model = GROQ_MODEL
     for attempt in range(retries + 1):
         try:
             logger.info(
-                f"Calling Groq ({GROQ_MODEL}) with {len(sources)} sources (attempt {attempt + 1})..."
+                f"Calling Groq ({current_model}) with {len(sources)} sources (attempt {attempt + 1})..."
             )
             response = client.chat.completions.create(
-                model=GROQ_MODEL,
+                model=current_model,
                 temperature=0.1,
                 max_tokens=800,
                 messages=[
@@ -92,11 +93,33 @@ def generate_answer(question: str, sources: List[Dict[str, Any]]) -> str:
                 ],
             )
             raw_text = response.choices[0].message.content or ""
-            return raw_text.strip()
+            # Strip <think>...</think> reasoning blocks emitted by Qwen/reasoning models
+            raw_text = re.sub(r"<think>.*?</think>", "", raw_text, flags=re.DOTALL).strip()
+            if not raw_text:
+                # If content is empty, check reasoning field as fallback
+                reasoning = getattr(response.choices[0].message, "reasoning", "") or ""
+                if reasoning:
+                    raw_text = reasoning.strip()
+            if not raw_text:
+                logger.warning(f"Groq ({current_model}) returned empty content on attempt {attempt + 1}.")
+                if attempt < retries:
+                    time.sleep(2.0)
+                    continue
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="The language model returned an empty response. Please try again.",
+                )
+            return raw_text
 
         except RateLimitError as e:
+            err_msg = str(e).lower()
+            if ("tpd" in err_msg or "tokens per day" in err_msg) and current_model == GROQ_MODEL:
+                fallback = "openai/gpt-oss-120b" if GROQ_MODEL != "openai/gpt-oss-120b" else "qwen/qwen3.8-27b"
+                logger.warning(f"Daily token limit on {current_model}. Failing over to {fallback}...")
+                current_model = fallback
+                continue
             if attempt < retries:
-                backoff_sec = 4.0 * (attempt + 1)
+                backoff_sec = 3.0 * (attempt + 1)
                 logger.warning(
                     f"Groq rate limit encountered (429). Retrying in {backoff_sec:.1f}s..."
                 )

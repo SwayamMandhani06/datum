@@ -3,6 +3,9 @@ import { Header } from '../components/Header';
 import { DocumentListRail } from '../components/DocumentListRail';
 import { ConversationView } from '../components/ConversationView';
 import { StructureView } from '../components/StructureView';
+import { DependencyMapView } from '../components/DependencyMapView';
+import { DocumentComparisonView } from '../components/DocumentComparisonView';
+import { CompletenessAuditView } from '../components/CompletenessAuditView';
 import { EvidenceDrawer } from '../components/EvidenceDrawer';
 import {
   listDocuments,
@@ -14,6 +17,8 @@ import {
   type BackendCitation,
 } from '../api/client';
 import type { DocumentItem, Citation, QAExchange, AnswerSegment } from '../types';
+
+type WorkspaceTab = 'conversation' | 'structure' | 'dependencies' | 'comparison' | 'audit';
 
 function parseAnswerSegments(text: string): AnswerSegment[] {
   const segments: AnswerSegment[] = [];
@@ -86,7 +91,8 @@ export const WorkspacePage: React.FC = () => {
   const [activeCitationId, setActiveCitationId] = useState<number | null>(null);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'conversation' | 'structure'>('conversation');
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('conversation');
+  const [isMobileRailOpen, setIsMobileRailOpen] = useState<boolean>(false);
 
   // Loading & error states
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -129,7 +135,6 @@ export const WorkspacePage: React.FC = () => {
   useEffect(() => {
     if (!activeDocument) return;
 
-    // Only load if not already loaded in memory
     if (exchangesByDoc[activeDocument.id] === undefined) {
       getDocumentHistory(activeDocument.id)
         .then((history: BackendChatHistoryItem[]) => {
@@ -139,7 +144,7 @@ export const WorkspacePage: React.FC = () => {
               const d = new Date(item.created_at);
               timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
             } catch {
-              // Ignore format error
+              // Ignore
             }
 
             const isLowConf = item.confidence === 'low';
@@ -166,83 +171,63 @@ export const WorkspacePage: React.FC = () => {
             [activeDocument.id]: loadedExchanges,
           }));
         })
-        .catch(() => {
-          // If history fails, initialize empty
-          setExchangesByDoc((prev) => ({
-            ...prev,
-            [activeDocument.id]: [],
-          }));
+        .catch((err) => {
+          console.error('Failed to load conversation history:', err);
         });
     }
   }, [activeDocument, exchangesByDoc]);
 
   // 3. Document selection
-  const handleSelectDocument = (id: string) => {
-    setSelectedDocId(id);
-    setIsDrawerOpen(false);
-    setActiveCitation(null);
-    setActiveCitationId(null);
+  const handleSelectDocument = (docId: string) => {
+    setSelectedDocId(docId);
+    handleCloseDrawer();
   };
 
-  // 4. Document upload
+  // 4. File upload
   const handleUploadFile = async (file: File) => {
     setIsUploading(true);
     setUploadingFilename(file.name);
     setUploadError(null);
 
     try {
-      const newDoc = await uploadDocument(file);
-      await fetchDocs(newDoc.id);
-      // Initialize empty exchange list for the new document
-      setExchangesByDoc((prev) => ({
-        ...prev,
-        [newDoc.id]: [],
-      }));
+      const uploadedDoc = await uploadDocument(file);
+      await fetchDocs(uploadedDoc.id);
     } catch (err: any) {
-      setUploadError(err.message || 'Failed to upload and process document.');
+      setUploadError(err.message || 'Upload and indexing failed.');
     } finally {
       setIsUploading(false);
       setUploadingFilename(null);
     }
   };
 
-  // 5. Document deletion
-  const handleDeleteDocument = async (id: string, e: React.MouseEvent) => {
+  // 5. File delete
+  const handleDeleteDocument = async (docId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (deletingDocId) return;
+    if (!window.confirm('Are you sure you want to delete this specification and its vector embeddings?')) {
+      return;
+    }
 
-    setDeletingDocId(id);
+    setDeletingDocId(docId);
     try {
-      await deleteDocument(id);
-      const remaining = documents.filter((d) => d.id !== id);
-      setDocuments(remaining);
-
-      // Clean up local exchanges
+      await deleteDocument(docId);
       setExchangesByDoc((prev) => {
-        const copy = { ...prev };
-        delete copy[id];
-        return copy;
+        const next = { ...prev };
+        delete next[docId];
+        return next;
       });
-
-      if (selectedDocId === id) {
-        const nextId = remaining.length > 0 ? remaining[0].id : null;
-        setSelectedDocId(nextId);
-        setIsDrawerOpen(false);
-        setActiveCitation(null);
-        setActiveCitationId(null);
-      }
+      await fetchDocs();
     } catch (err: any) {
-      alert(`Could not delete document: ${err.message}`);
+      alert(`Deletion failed: ${err.message}`);
     } finally {
       setDeletingDocId(null);
     }
   };
 
-  // 6. Asking a question
+  // 6. Ask question
   const handleAskQuestion = async (questionText: string) => {
-    if (!activeDocument || activeDocument.status !== 'ready' || isAsking) return;
+    if (!activeDocument) return;
 
-    const exchangeId = `qa-${Date.now()}`;
+    const exchangeId = `ex-${Date.now()}`;
     const now = new Date();
     const timeString = `${String(now.getHours()).padStart(2, '0')}:${String(
       now.getMinutes()
@@ -312,13 +297,17 @@ export const WorkspacePage: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-surface-0 text-text-primary overflow-hidden font-sans relative">
+    <div className="h-screen w-full flex flex-col bg-surface-0 text-text-primary overflow-hidden font-sans relative">
       {/* Top Header Bar */}
-      <Header activeDocument={activeDocument} />
+      <Header
+        activeDocument={activeDocument}
+        onToggleSidebar={() => setIsMobileRailOpen((prev) => !prev)}
+        isSidebarOpen={isMobileRailOpen}
+      />
 
-      {/* Three-Pane Workspace Area */}
+      {/* Main Workspace Area */}
       <div className="flex-1 flex min-h-0 overflow-hidden relative">
-        {/* Pane 1: Left Rail (Document List) */}
+        {/* Pane 1: Document Rail */}
         <DocumentListRail
           documents={documents}
           selectedDocumentId={selectedDocId}
@@ -330,57 +319,102 @@ export const WorkspacePage: React.FC = () => {
           uploadError={uploadError}
           deletingDocId={deletingDocId}
           onClearUploadError={() => setUploadError(null)}
+          isMobileOpen={isMobileRailOpen}
+          onCloseMobile={() => setIsMobileRailOpen(false)}
         />
 
-        {/* Pane 2: Center Pane (Conversation View or Structure View) */}
+        {/* Pane 2: Primary Center Workspace with Multi-View Tabs */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-          {/* Tab Switcher Bar */}
-          <div className="h-10 border-b border-border-theme px-4 flex items-center gap-0 bg-surface-1 flex-shrink-0 select-none z-10">
+          {/* Engineering Navigation Tabs */}
+          <div className="h-12 border-b border-border-theme px-4 flex items-center gap-1.5 bg-surface-1/90 backdrop-blur-md flex-shrink-0 select-none z-10 overflow-x-auto custom-scrollbar">
             <button
               type="button"
               onClick={() => setActiveTab('conversation')}
-              className={`h-10 px-4 text-sm transition-colors duration-150 border-b-2 -mb-px ${
-                activeTab === 'conversation'
-                  ? 'border-accent text-text-primary font-medium'
-                  : 'border-transparent text-text-muted hover:text-text-secondary'
-              }`}
+              className={`tab-pill ${activeTab === 'conversation' ? 'active' : ''}`}
             >
-              Conversation
+              <span className="w-4 h-4 rounded-full bg-accent/15 text-accent text-[10px] flex items-center justify-center font-bold">1</span>
+              <span>Grounded Q&amp;A</span>
             </button>
+
             <button
               type="button"
               onClick={() => setActiveTab('structure')}
-              className={`h-10 px-4 text-sm transition-colors duration-150 border-b-2 -mb-px ${
-                activeTab === 'structure'
-                  ? 'border-accent text-text-primary font-medium'
-                  : 'border-transparent text-text-muted hover:text-text-secondary'
-              }`}
+              className={`tab-pill ${activeTab === 'structure' ? 'active' : ''}`}
             >
-              Structure
+              <span className="w-4 h-4 rounded-full bg-accent/15 text-accent text-[10px] flex items-center justify-center font-bold">2</span>
+              <span>Architecture Inventory</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('dependencies')}
+              className={`tab-pill ${activeTab === 'dependencies' ? 'active' : ''}`}
+            >
+              <span className="w-4 h-4 rounded-full bg-accent/15 text-accent text-[10px] flex items-center justify-center font-bold">3</span>
+              <span>Traceability &amp; Dependencies</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('comparison')}
+              className={`tab-pill ${activeTab === 'comparison' ? 'active' : ''}`}
+            >
+              <span className="w-4 h-4 rounded-full bg-accent/15 text-accent text-[10px] flex items-center justify-center font-bold">4</span>
+              <span>Cross-Spec Comparison</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('audit')}
+              className={`tab-pill ${activeTab === 'audit' ? 'active' : ''}`}
+            >
+              <span className="w-4 h-4 rounded-full bg-accent/15 text-accent text-[10px] flex items-center justify-center font-bold">5</span>
+              <span>Completeness Audit</span>
             </button>
           </div>
 
-          {/* Tab Content */}
-          {activeTab === 'conversation' ? (
-            <ConversationView
-              document={activeDocument}
-              exchanges={activeExchanges}
-              activeCitationId={activeCitationId}
-              onCitationClick={handleCitationClick}
-              onAskQuestion={handleAskQuestion}
-              isAsking={isAsking}
-            />
-          ) : (
-            <StructureView document={activeDocument} />
-          )}
+          {/* Active View Content */}
+          <div className="flex-1 min-h-0 flex flex-col overflow-hidden relative">
+            {activeTab === 'conversation' && (
+              <ConversationView
+                document={activeDocument}
+                exchanges={activeExchanges}
+                activeCitationId={activeCitationId}
+                onCitationClick={handleCitationClick}
+                onAskQuestion={handleAskQuestion}
+                isAsking={isAsking}
+              />
+            )}
+
+            {activeTab === 'structure' && (
+              <StructureView document={activeDocument} />
+            )}
+
+            {activeTab === 'dependencies' && (
+              <DependencyMapView document={activeDocument} />
+            )}
+
+            {activeTab === 'comparison' && (
+              <DocumentComparisonView
+                documents={documents}
+                activeDocument={activeDocument}
+              />
+            )}
+
+            {activeTab === 'audit' && (
+              <CompletenessAuditView document={activeDocument} />
+            )}
+          </div>
         </div>
 
-        {/* Pane 3: Right Drawer (Evidence Panel) */}
-        <EvidenceDrawer
-          isOpen={isDrawerOpen}
-          citation={activeCitation}
-          onClose={handleCloseDrawer}
-        />
+        {/* Pane 3: Evidence Panel (Active during Conversation citation click) */}
+        {activeTab === 'conversation' && (
+          <EvidenceDrawer
+            isOpen={isDrawerOpen}
+            citation={activeCitation}
+            onClose={handleCloseDrawer}
+          />
+        )}
       </div>
     </div>
   );

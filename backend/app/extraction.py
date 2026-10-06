@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -68,25 +69,58 @@ def call_groq_extraction(batch_text: str, retry_strict: bool = False, max_retrie
 
     for attempt in range(max_retries + 1):
         try:
-            response = client.chat.completions.create(
-                model=GROQ_MODEL,
-                temperature=0.1,
-                max_tokens=800,
-                response_format={"type": "json_object"},
-                messages=[
-                    {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_content},
-                ],
-            )
+            try:
+                response = client.chat.completions.create(
+                    model=GROQ_MODEL,
+                    temperature=0.1,
+                    max_tokens=800,
+                    response_format={"type": "json_object"},
+                    messages=[
+                        {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                )
+            except Exception as schema_err:
+                if "json_validate_failed" in str(schema_err) or "400" in str(schema_err):
+                    # Fallback to direct prompt without strict json_object schema enforcement
+                    response = client.chat.completions.create(
+                        model=GROQ_MODEL,
+                        temperature=0.1,
+                        max_tokens=800,
+                        messages=[
+                            {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
+                            {"role": "user", "content": user_content + "\n\nRespond with valid raw JSON object only."},
+                        ],
+                    )
+                else:
+                    raise schema_err
+
             content = response.choices[0].message.content or "{}"
-            parsed = json.loads(content)
+            # Strip markdown formatting if present
+            clean_content = re.sub(r"^```json\s*", "", content.strip(), flags=re.MULTILINE)
+            clean_content = re.sub(r"```$", "", clean_content.strip(), flags=re.MULTILINE).strip()
+            
+            try:
+                parsed = json.loads(clean_content)
+            except json.JSONDecodeError:
+                # Try finding JSON block
+                json_match = re.search(r"\{.*\}", clean_content, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group(0))
+                else:
+                    parsed = {}
+
             if isinstance(parsed, dict) and "entities" in parsed and isinstance(parsed["entities"], list):
                 return parsed["entities"]
             logger.warning(f"Unexpected JSON format from Groq extraction: {content[:200]}")
             return None
         except RateLimitError as e:
+            err_str = str(e).lower()
+            if "tpd" in err_str or "tokens per day" in err_str:
+                logger.warning(f"Groq daily token limit reached. Skipping further extraction retries: {e}")
+                return None
             if attempt < max_retries:
-                wait_s = 4.0 * (attempt + 1)
+                wait_s = 2.0 * (attempt + 1)
                 logger.warning(f"Rate limit in Groq extraction (attempt {attempt + 1}), waiting {wait_s}s...")
                 time.sleep(wait_s)
                 continue
@@ -151,7 +185,9 @@ async def extract_document_entities(
     if current_batch:
         batches.append(current_batch)
 
-    if max_batches and max_batches > 0:
+    if max_batches is None:
+        max_batches = 6  # Sensible default to prevent token exhaustion on huge specs
+    if max_batches > 0:
         logger.info(f"Limiting extraction to first {max_batches} of {len(batches)} batches.")
         batches = batches[:max_batches]
 
@@ -159,22 +195,22 @@ async def extract_document_entities(
 
     raw_entities: List[Dict[str, Any]] = []
 
-    # 2. Execute extraction for each batch
+    # 2. Execute extraction for each batch asynchronously without blocking event loop
     for b_idx, batch in enumerate(batches):
         batch_text = format_batch_text(batch)
-        extracted = call_groq_extraction(batch_text, retry_strict=False)
+        extracted = await asyncio.to_thread(call_groq_extraction, batch_text, retry_strict=False)
 
         # Retry once if initial extraction failed
         if extracted is None:
             logger.info(f"Retrying batch {b_idx + 1} with strict JSON prompt...")
-            extracted = call_groq_extraction(batch_text, retry_strict=True)
+            extracted = await asyncio.to_thread(call_groq_extraction, batch_text, retry_strict=True)
 
         if extracted:
             raw_entities.extend(extracted)
         else:
             logger.warning(f"Batch {b_idx + 1} for document '{document_id}' yielded no parseable entities.")
 
-        time.sleep(1.0)
+        await asyncio.sleep(0.3)
 
     valid_types = {"component", "port", "interface", "signal", "other"}
     validated_entities: List[ExtractedEntity] = []

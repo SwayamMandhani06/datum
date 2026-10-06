@@ -1,4 +1,6 @@
 import logging
+import uuid
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
@@ -10,7 +12,7 @@ from qdrant_client.models import (
     MatchValue,
     PayloadSchemaType,
 )
-from app.database import QDRANT_URL, QDRANT_API_KEY, QDRANT_COLLECTION
+from app.database import QDRANT_URL, QDRANT_LOCAL_PATH, QDRANT_API_KEY, QDRANT_COLLECTION
 from app.embeddings import embed_texts, embed_query
 
 logger = logging.getLogger("datum.vectorstore")
@@ -18,17 +20,42 @@ logger = logging.getLogger("datum.vectorstore")
 _client: Optional[QdrantClient] = None
 
 
+def _normalize_point_id(raw_id: Any) -> Any:
+    """Ensure point ID is an unsigned integer or a valid UUID string required by Qdrant."""
+    if isinstance(raw_id, int) and raw_id >= 0:
+        return raw_id
+    id_str = str(raw_id)
+    try:
+        uuid.UUID(id_str)
+        return id_str
+    except (ValueError, AttributeError):
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, id_str))
+
+
 def get_qdrant_client() -> QdrantClient:
-    """Initialize or return the singleton QdrantClient."""
+    """Initialize or return the singleton QdrantClient.
+    
+    Supports three modes based on QDRANT_URL:
+      - ':memory:' -> in-memory (lost on restart)
+      - ':local:'  -> on-disk persistent path (QDRANT_LOCAL_PATH)
+      - 'https://...' -> remote Qdrant Cloud or self-hosted
+    """
     global _client
     if _client is None:
         if not QDRANT_URL:
-            raise RuntimeError(
-                "QDRANT_URL is not configured. Please set QDRANT_URL in your .env file."
-            )
-        if QDRANT_URL == ":memory:":
+            # Default to local path if no URL is set
+            local_path = Path(QDRANT_LOCAL_PATH)
+            local_path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Initializing on-disk Qdrant client at '{local_path}'...")
+            _client = QdrantClient(path=str(local_path))
+        elif QDRANT_URL == ":memory:":
             logger.info("Initializing in-memory Qdrant client (:memory:)...")
             _client = QdrantClient(location=":memory:")
+        elif QDRANT_URL == ":local:":
+            local_path = Path(QDRANT_LOCAL_PATH)
+            local_path.mkdir(parents=True, exist_ok=True)
+            logger.info(f"Initializing on-disk Qdrant client at '{local_path}'...")
+            _client = QdrantClient(path=str(local_path))
         else:
             logger.info(f"Connecting to Qdrant cluster at '{QDRANT_URL}'...")
             _client = QdrantClient(
@@ -93,23 +120,17 @@ def ensure_collection(client: QdrantClient) -> None:
 def init_vectorstore() -> bool:
     """
     Validate connection to Qdrant and ensure the collection exists.
-    Logs warnings/errors gracefully if Qdrant is unconfigured or unreachable.
+    Logs warnings/errors gracefully if Qdrant is unreachable.
     Returns True if connection succeeded and collection is ready, False otherwise.
     """
-    if not QDRANT_URL:
-        logger.warning(
-            "QDRANT_URL is not configured. Vector search will be unavailable until Qdrant is configured."
-        )
-        return False
-
     try:
         client = get_qdrant_client()
         ensure_collection(client)
-        logger.info(f"Qdrant connection verified. Collection '{QDRANT_COLLECTION}' is ready.")
+        logger.info(f"Qdrant ready. Collection '{QDRANT_COLLECTION}' is available.")
         return True
     except Exception as e:
         logger.error(
-            f"Failed to connect to Qdrant at '{QDRANT_URL}': {e}. "
+            f"Failed to initialize Qdrant: {e}. "
             "Document uploads requiring embeddings will fail until resolved."
         )
         return False
@@ -117,8 +138,6 @@ def init_vectorstore() -> bool:
 
 def check_vectorstore_health() -> bool:
     """Lightweight check to verify Qdrant connectivity."""
-    if not QDRANT_URL:
-        return False
     try:
         client = get_qdrant_client()
         client.get_collections()
@@ -144,16 +163,16 @@ def upsert_chunks(document_id: str, chunks: List[Dict[str, Any]]) -> None:
 
     points = [
         PointStruct(
-            id=c["id"],
+            id=_normalize_point_id(c.get("id", str(uuid.uuid4()))),
             vector=emb,
             payload={
                 "document_id": document_id,
-                "chunk_index": c["chunk_index"],
+                "chunk_index": c.get("chunk_index", 0),
                 "section_title": c.get("section_title"),
-                "page_start": c["page_start"],
-                "page_end": c["page_end"],
-                "text": c["text"],
-                "word_count": c["word_count"],
+                "page_start": c.get("page_start", 1),
+                "page_end": c.get("page_end", 1),
+                "text": c.get("text", ""),
+                "word_count": c.get("word_count", len(c.get("text", "").split())),
             },
         )
         for c, emb in zip(chunks, embeddings)

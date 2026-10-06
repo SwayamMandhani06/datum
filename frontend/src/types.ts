@@ -58,3 +58,64 @@ export interface ExtractionResult {
   entities: ExtractedEntity[];
   generated_at: string;
 }
+
+export type SeverityType = 'warning' | 'notice' | 'critical';
+
+export interface InconsistencyIssue {
+  severity: SeverityType;
+  category: string;
+  entity_name: string;
+  description: string;
+  recommendation?: string | null;
+}
+
+export interface ComparisonResult {
+  doc_a_id: string;
+  doc_a_name: string;
+  doc_b_id: string;
+  doc_b_name: string;
+  total_entities_a: number;
+  total_entities_b: number;
+  shared_entities: ExtractedEntity[];
+  unique_to_a: ExtractedEntity[];
+  unique_to_b: ExtractedEntity[];
+  inconsistencies: InconsistencyIssue[];
+  compatibility_score: number;
+  summary: string;
+  generated_at: string;
+}
+
+export type FlowType = 'provided' | 'required' | 'bidirectional' | 'internal';
+
+export interface DependencyNode {
+  component: string;
+  ports: string[];
+  interfaces: string[];
+  signals: string[];
+  flow_type: FlowType;
+  page_references: number[];
+  section?: string | null;
+}
+
+export interface DependencyMapResult {
+  document_id: string;
+  filename: string;
+  nodes: DependencyNode[];
+  total_components: number;
+  total_interfaces: number;
+  total_connections: number;
+  generated_at: string;
+}
+
+export interface CompletenessAuditResult {
+  document_id: string;
+  filename: string;
+  health_score: number;
+  total_components: number;
+  total_ports: number;
+  total_interfaces: number;
+  total_signals: number;
+  issues: InconsistencyIssue[];
+  generated_at: string;
+}
+
